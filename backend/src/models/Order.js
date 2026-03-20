@@ -35,6 +35,9 @@ const orderSchema = new mongoose.Schema({
   whatsappSent:{ type: Boolean, default: false },
 }, { timestamps: true });
 
+orderSchema.index({ status: 1, createdAt: -1 });
+orderSchema.index({ createdAt: -1 });
+
 orderSchema.pre('save', async function (next) {
   if (!this.orderId) {
     const count = await mongoose.model('Order').countDocuments();
