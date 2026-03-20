@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(timeout 10 node server.js)",
+      "Bash(node -e \":*)",
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(ls /Volumes/myssd/dev/freelancing-projects/adiyogi-international/.git/worktrees/interesting-ptolemy/*.lock)",
+      "Read(//Volumes/myssd/dev/freelancing-projects/adiyogi-international/.git/**)"
     ]
   }
 }
