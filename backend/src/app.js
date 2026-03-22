@@ -8,7 +8,8 @@ import adminRoutes from './routes/admin.routes.js';
 import productRoutes from './routes/products.routes.js';
 import collectionRoutes from './routes/collections.routes.js';
 import orderRoutes from './routes/orders.routes.js';
-import { getWAStatus, getQRBase64 } from './services/whatsapp.service.js';
+import { getWAStatus, getQRBase64, initWhatsApp, resetSession } from './services/whatsapp.service.js';
+import auth from './middleware/auth.middleware.js';
 import errorHandler from './middleware/error.middleware.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,21 @@ app.get('/api/whatsapp/qr', (_, res) => {
   const qr = getQRBase64();
   if (!qr) return res.json({ qr: null, message: 'No QR available — already connected or not initialized' });
   res.json({ qr });
+});
+
+// WhatsApp manual init (auth-protected)
+app.post('/api/whatsapp/init', auth, async (req, res) => {
+  const status = getWAStatus();
+  if (status.isReady) return res.json({ message: 'WhatsApp is already connected' });
+  if (status.isInitializing) return res.json({ message: 'Initialization already in progress' });
+  initWhatsApp().catch(err => console.error('WhatsApp init error:', err.message));
+  res.json({ message: 'WhatsApp initialization started' });
+});
+
+// WhatsApp reset session (auth-protected) — clears saved auth, forces QR re-scan
+app.post('/api/whatsapp/reset', auth, (req, res) => {
+  resetSession();
+  res.json({ message: 'Session cleared — initialize WhatsApp to get a new QR code' });
 });
 
 // Health check
