@@ -2,6 +2,7 @@
  * Unit tests for: error middleware
  * Module path:    src/middleware/error.middleware.js
  * Created:        2026-03-22
+ * Updated:        2026-03-24 — CDN ImageKit migration (added ImageKit CDN error handling)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -17,13 +18,13 @@ import { ApiError } from '../../../src/utils/api-error.js';
 const mockRes = () => {
   const res = {};
   res.status = vi.fn().mockReturnValue(res);
-  res.json = vi.fn().mockReturnValue(res);
+  res.json   = vi.fn().mockReturnValue(res);
   return res;
 };
 
 describe('errorHandler middleware', () => {
   let res;
-  const req = {};
+  const req  = {};
   const next = vi.fn();
 
   beforeEach(() => {
@@ -87,7 +88,7 @@ describe('errorHandler middleware', () => {
 
   // ── Multer errors ────────────────────────────────────────────────────────────
   describe('Multer error handling', () => {
-    it('should return 400 with "File too large" message for LIMIT_FILE_SIZE', () => {
+    it('should return 400 with "File too large (max 10MB)" for LIMIT_FILE_SIZE', () => {
       const err = { code: 'LIMIT_FILE_SIZE', message: 'File size exceeded' };
       errorHandler(err, req, res, next);
       expect(res.status).toHaveBeenCalledWith(400);
@@ -99,6 +100,60 @@ describe('errorHandler middleware', () => {
       errorHandler(err, req, res, next);
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ message: 'Only image files allowed' });
+    });
+  });
+
+  // ── ImageKit CDN errors ───────────────────────────────────────────────────────
+  describe('ImageKit CDN error handling', () => {
+    it('should return 502 when error message contains "imagekit"', () => {
+      const err = new Error('imagekit upload failed with status 500');
+      errorHandler(err, req, res, next);
+      expect(res.status).toHaveBeenCalledWith(502);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'CDN service error. Please try again.' }),
+      );
+    });
+
+    it('should return 502 when error message contains "ik.imagekit" (CDN domain)', () => {
+      const err = new Error('Failed to reach ik.imagekit.io endpoint');
+      errorHandler(err, req, res, next);
+      expect(res.status).toHaveBeenCalledWith(502);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'CDN service error. Please try again.' }),
+      );
+    });
+
+    it('should match "imagekit" case-insensitively', () => {
+      const err = new Error('ImageKit API rate limit exceeded');
+      errorHandler(err, req, res, next);
+      expect(res.status).toHaveBeenCalledWith(502);
+    });
+
+    it('should include error detail in development mode', () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+
+      const err = new Error('imagekit timeout');
+      errorHandler(err, req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ detail: 'imagekit timeout' }),
+      );
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('should NOT include error detail in production mode', () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      const err = new Error('imagekit timeout');
+      errorHandler(err, req, res, next);
+
+      const [jsonArg] = res.json.mock.calls[0];
+      expect(jsonArg).not.toHaveProperty('detail');
+
+      process.env.NODE_ENV = originalEnv;
     });
   });
 

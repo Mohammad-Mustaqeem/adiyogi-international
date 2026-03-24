@@ -2,60 +2,65 @@
  * Unit tests for: multer middleware
  * Module path:    src/middleware/multer.middleware.js
  * Created:        2026-03-22
+ * Updated:        2026-03-24 — CDN ImageKit migration (memory storage replaces disk storage)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ── Capture internal callbacks via vi.hoisted + mocked multer ──────────────────
-// vi.mock is hoisted before imports, so we use vi.hoisted() to share state
-// between the mock factory and the test suite.
+// vi.hoisted shares state between the mock factory (hoisted) and the test suite
 const state = vi.hoisted(() => ({
-  fileFilters: [],      // imageFilter instances captured per multer() call
-  storageOpts: [],      // diskStorage callback objects
-  multerOpts: [],       // full opts passed to multer()
+  fileFilters:  [],   // imageFilter instances captured per multer() call
+  multerOpts:   [],   // full opts passed to multer()
+  arrayCalls:   [],   // args passed to .array()
+  singleCalls:  [],   // args passed to .single()
+  memoryStorageCalls: 0,
 }));
 
 vi.mock('multer', () => {
-  const diskStorage = vi.fn().mockImplementation((opts) => {
-    state.storageOpts.push(opts);
-    return { _isStorage: true };
+  // Simulate the middleware function returned by .array() / .single()
+  const arrayMiddleware  = vi.fn();
+  const singleMiddleware = vi.fn();
+
+  const mockInstance = {
+    array:  vi.fn().mockImplementation((field, max) => {
+      state.arrayCalls.push({ field, max });
+      return arrayMiddleware;
+    }),
+    single: vi.fn().mockImplementation((field) => {
+      state.singleCalls.push({ field });
+      return singleMiddleware;
+    }),
+  };
+
+  const memoryStorage = vi.fn().mockImplementation(() => {
+    state.memoryStorageCalls++;
+    return { _type: 'memory' };
   });
 
   const multer = vi.fn().mockImplementation((opts) => {
     state.fileFilters.push(opts.fileFilter);
     state.multerOpts.push(opts);
-    return { single: vi.fn(), array: vi.fn(), fields: vi.fn() };
+    return mockInstance;
   });
 
-  multer.diskStorage = diskStorage;
+  multer.memoryStorage = memoryStorage;
   return { default: multer };
 });
-
-vi.mock('fs', () => ({ mkdirSync: vi.fn() }));
 
 import multer from 'multer';
 import { uploadProductImages, uploadCollectionImage } from '../../../src/middleware/multer.middleware.js';
 
 describe('multer.middleware', () => {
-  // imageFilter is the same function reused for both multer instances
-  // state.fileFilters[0] = products, state.fileFilters[1] = collections
-  let imageFilter;
-
-  beforeEach(() => {
-    // Both instances share the same imageFilter function
-    imageFilter = state.fileFilters[0];
-  });
-
   // ── Module exports ─────────────────────────────────────────────────────────
   describe('exports', () => {
-    it('should export uploadProductImages as a multer instance', () => {
+    it('should export uploadProductImages as a middleware function', () => {
       expect(uploadProductImages).toBeDefined();
-      expect(typeof uploadProductImages.single).toBe('function');
+      expect(typeof uploadProductImages).toBe('function');
     });
 
-    it('should export uploadCollectionImage as a multer instance', () => {
+    it('should export uploadCollectionImage as a middleware function', () => {
       expect(uploadCollectionImage).toBeDefined();
-      expect(typeof uploadCollectionImage.single).toBe('function');
+      expect(typeof uploadCollectionImage).toBe('function');
     });
 
     it('should create two separate multer instances (one per upload type)', () => {
@@ -63,21 +68,52 @@ describe('multer.middleware', () => {
     });
   });
 
+  // ── Memory storage ─────────────────────────────────────────────────────────
+  describe('memory storage', () => {
+    it('should use multer.memoryStorage() — never write files to disk', () => {
+      expect(multer.memoryStorage).toHaveBeenCalled();
+      expect(state.memoryStorageCalls).toBeGreaterThan(0);
+    });
+
+    it('should pass the memory storage instance to both multer configurations', () => {
+      const memoryStorageInstance = multer.memoryStorage.mock.results[0].value;
+      state.multerOpts.forEach((opts) => {
+        expect(opts.storage).toBe(memoryStorageInstance);
+      });
+    });
+  });
+
+  // ── Field configuration ────────────────────────────────────────────────────
+  describe('field configuration', () => {
+    it('should configure uploadProductImages with .array("images", 10)', () => {
+      expect(state.arrayCalls).toContainEqual({ field: 'images', max: 10 });
+    });
+
+    it('should configure uploadCollectionImage with .single("image")', () => {
+      expect(state.singleCalls).toContainEqual({ field: 'image' });
+    });
+  });
+
   // ── File size limit ────────────────────────────────────────────────────────
   describe('file size limit', () => {
     it('should enforce a 10 MB file size limit for product images', () => {
-      const opts = state.multerOpts[0];
-      expect(opts.limits.fileSize).toBe(10 * 1024 * 1024);
+      expect(state.multerOpts[0].limits.fileSize).toBe(10 * 1024 * 1024);
     });
 
     it('should enforce a 10 MB file size limit for collection images', () => {
-      const opts = state.multerOpts[1];
-      expect(opts.limits.fileSize).toBe(10 * 1024 * 1024);
+      expect(state.multerOpts[1].limits.fileSize).toBe(10 * 1024 * 1024);
     });
   });
 
   // ── imageFilter ────────────────────────────────────────────────────────────
   describe('imageFilter', () => {
+    let imageFilter;
+
+    beforeEach(() => {
+      // Both instances share the same imageFilter function reference
+      imageFilter = state.fileFilters[0];
+    });
+
     it('should call cb(null, true) for image/jpeg files', () => {
       const cb = vi.fn();
       imageFilter({}, { mimetype: 'image/jpeg' }, cb);
@@ -96,10 +132,15 @@ describe('multer.middleware', () => {
       expect(cb).toHaveBeenCalledWith(null, true);
     });
 
-    it('should call cb(Error) for application/pdf files', () => {
+    it('should call cb(null, true) for any image/* MIME type', () => {
+      const cb = vi.fn();
+      imageFilter({}, { mimetype: 'image/gif' }, cb);
+      expect(cb).toHaveBeenCalledWith(null, true);
+    });
+
+    it('should call cb(Error) with "Only image files allowed" for application/pdf', () => {
       const cb = vi.fn();
       imageFilter({}, { mimetype: 'application/pdf' }, cb);
-      expect(cb).toHaveBeenCalledTimes(1);
       const [err] = cb.mock.calls[0];
       expect(err).toBeInstanceOf(Error);
       expect(err.message).toBe('Only image files allowed');
@@ -118,41 +159,6 @@ describe('multer.middleware', () => {
       const [err] = cb.mock.calls[0];
       expect(err).toBeInstanceOf(Error);
       expect(err.message).toBe('Only image files allowed');
-    });
-  });
-
-  // ── diskStorage ────────────────────────────────────────────────────────────
-  describe('diskStorage', () => {
-    it('should create disk storage for the "products" subfolder', () => {
-      expect(multer.diskStorage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          destination: expect.any(Function),
-          filename: expect.any(Function),
-        }),
-      );
-    });
-
-    it('filename callback should return a string with the original file extension', () => {
-      const storageOpts = state.storageOpts[0];
-      const cb = vi.fn();
-      storageOpts.filename({}, { originalname: 'photo.jpg' }, cb);
-
-      expect(cb).toHaveBeenCalledTimes(1);
-      const [err, filename] = cb.mock.calls[0];
-      expect(err).toBeNull();
-      expect(filename).toMatch(/\.jpg$/);
-    });
-
-    it('filename callback should generate a unique name each call', () => {
-      const storageOpts = state.storageOpts[0];
-      const cb1 = vi.fn();
-      const cb2 = vi.fn();
-      storageOpts.filename({}, { originalname: 'a.png' }, cb1);
-      storageOpts.filename({}, { originalname: 'b.png' }, cb2);
-
-      const [, name1] = cb1.mock.calls[0];
-      const [, name2] = cb2.mock.calls[0];
-      expect(name1).not.toBe(name2);
     });
   });
 });

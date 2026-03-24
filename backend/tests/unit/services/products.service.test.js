@@ -2,6 +2,7 @@
  * Unit tests for: ProductsService
  * Module path:    src/services/products.service.js
  * Created:        2026-03-22
+ * Updated:        2026-03-24 — CDN ImageKit migration (images stored as CDN URLs + fileIds)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -23,8 +24,14 @@ vi.mock('../../../src/utils/helpers.js', () => ({
   buildCustomerMessage: vi.fn(),
 }));
 
+vi.mock('../../../src/services/imagekit.service.js', () => ({
+  uploadProductImages: vi.fn(),
+  deleteFiles:         vi.fn().mockResolvedValue(undefined),
+}));
+
 import * as productRepo from '../../../src/repositories/product.repository.js';
 import * as helpers from '../../../src/utils/helpers.js';
+import * as imagekitService from '../../../src/services/imagekit.service.js';
 import {
   getProducts,
   getProductById,
@@ -32,7 +39,8 @@ import {
   updateProduct,
   deleteProduct,
 } from '../../../src/services/products.service.js';
-import { ApiError } from '../../../src/utils/api-error.js';
+
+const CDN_BASE = 'https://ik.imagekit.io/test/adiyogi/product-images';
 
 const buildProduct = (overrides = {}) => ({
   _id: 'prod-001',
@@ -40,6 +48,8 @@ const buildProduct = (overrides = {}) => ({
   itemCode: 'TP-001',
   salesPrice: 100,
   isActive: true,
+  images: [],
+  imageFileIds: [],
   ...overrides,
 });
 
@@ -164,28 +174,40 @@ describe('products.service', () => {
       expect(productRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ collections: ['col-1', 'col-2'] }),
       );
+      expect(imagekitService.uploadProductImages).not.toHaveBeenCalled();
     });
 
-    it('should map file objects to /uploads/products/{filename} paths when files are provided', async () => {
-      const files = [{ filename: 'img1.jpg' }, { filename: 'img2.jpg' }];
+    it('should upload files to ImageKit and store CDN URLs and fileIds when files are provided', async () => {
+      const files = [
+        { buffer: Buffer.from('img1'), originalname: 'img1.jpg' },
+        { buffer: Buffer.from('img2'), originalname: 'img2.jpg' },
+      ];
+      imagekitService.uploadProductImages.mockResolvedValue([
+        { url: `${CDN_BASE}/product-uuid-1.jpg`, fileId: 'fid-1' },
+        { url: `${CDN_BASE}/product-uuid-2.jpg`, fileId: 'fid-2' },
+      ]);
       productRepo.create.mockResolvedValue(buildProduct());
 
       await createProduct({ name: 'Product', itemCode: 'P-001', salesPrice: 100 }, files);
 
+      expect(imagekitService.uploadProductImages).toHaveBeenCalledWith(files);
       expect(productRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          images: ['/uploads/products/img1.jpg', '/uploads/products/img2.jpg'],
+          images:       [`${CDN_BASE}/product-uuid-1.jpg`, `${CDN_BASE}/product-uuid-2.jpg`],
+          imageFileIds: ['fid-1', 'fid-2'],
         }),
       );
     });
 
-    it('should NOT include images key when files array is empty', async () => {
+    it('should NOT include images or imageFileIds when files array is empty', async () => {
       productRepo.create.mockResolvedValue(buildProduct());
 
       await createProduct({ name: 'Product', itemCode: 'P-001', salesPrice: 100 }, []);
 
       const [data] = productRepo.create.mock.calls[0];
       expect(data.images).toBeUndefined();
+      expect(data.imageFileIds).toBeUndefined();
+      expect(imagekitService.uploadProductImages).not.toHaveBeenCalled();
     });
 
     it('should remove the "collection" key from the data before saving', async () => {
@@ -196,11 +218,20 @@ describe('products.service', () => {
       const [data] = productRepo.create.mock.calls[0];
       expect(data.collection).toBeUndefined();
     });
+
+    it('should propagate errors from imagekit.uploadProductImages', async () => {
+      imagekitService.uploadProductImages.mockRejectedValue(new Error('CDN error'));
+      const files = [{ buffer: Buffer.from('img'), originalname: 'img.jpg' }];
+
+      await expect(
+        createProduct({ name: 'P', itemCode: 'P-001', salesPrice: 100 }, files),
+      ).rejects.toThrow('CDN error');
+    });
   });
 
   // ── updateProduct ──────────────────────────────────────────────────────────
   describe('updateProduct', () => {
-    it('should update the product with parsed collections', async () => {
+    it('should update the product with parsed collections and no file changes when files are absent', async () => {
       helpers.parseCollections.mockReturnValue(['col-updated']);
       productRepo.update.mockResolvedValue(buildProduct());
 
@@ -210,24 +241,65 @@ describe('products.service', () => {
         'prod-001',
         expect.objectContaining({ collections: ['col-updated'] }),
       );
+      expect(imagekitService.uploadProductImages).not.toHaveBeenCalled();
     });
 
-    it('should update images when new files are provided', async () => {
-      const files = [{ filename: 'new-img.jpg' }];
+    it('should upload new images to ImageKit and update images + imageFileIds when files are provided', async () => {
+      const files = [{ buffer: Buffer.from('new-img'), originalname: 'new-img.jpg' }];
+      imagekitService.uploadProductImages.mockResolvedValue([
+        { url: `${CDN_BASE}/product-new-uuid.jpg`, fileId: 'new-fid' },
+      ]);
+      productRepo.findById.mockResolvedValue(buildProduct({ imageFileIds: [] }));
       productRepo.update.mockResolvedValue(buildProduct());
 
       await updateProduct('prod-001', {}, files);
 
+      expect(imagekitService.uploadProductImages).toHaveBeenCalledWith(files);
       expect(productRepo.update).toHaveBeenCalledWith(
         'prod-001',
-        expect.objectContaining({ images: ['/uploads/products/new-img.jpg'] }),
+        expect.objectContaining({
+          images:       [`${CDN_BASE}/product-new-uuid.jpg`],
+          imageFileIds: ['new-fid'],
+        }),
       );
+    });
+
+    it('should delete old ImageKit files when replacing images and existing fileIds are present', async () => {
+      const files = [{ buffer: Buffer.from('img'), originalname: 'img.jpg' }];
+      const OLD_IDS = ['old-fid-1', 'old-fid-2'];
+      imagekitService.uploadProductImages.mockResolvedValue([
+        { url: `${CDN_BASE}/new.jpg`, fileId: 'new-fid' },
+      ]);
+      productRepo.findById.mockResolvedValue(buildProduct({ imageFileIds: OLD_IDS }));
+      productRepo.update.mockResolvedValue(buildProduct());
+
+      await updateProduct('prod-001', {}, files);
+
+      // Allow fire-and-forget to resolve
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(imagekitService.deleteFiles).toHaveBeenCalledWith(OLD_IDS);
+    });
+
+    it('should NOT call deleteFiles when existing product has no imageFileIds', async () => {
+      const files = [{ buffer: Buffer.from('img'), originalname: 'img.jpg' }];
+      imagekitService.uploadProductImages.mockResolvedValue([
+        { url: `${CDN_BASE}/new.jpg`, fileId: 'new-fid' },
+      ]);
+      productRepo.findById.mockResolvedValue(buildProduct({ imageFileIds: [] }));
+      productRepo.update.mockResolvedValue(buildProduct());
+
+      await updateProduct('prod-001', {}, files);
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(imagekitService.deleteFiles).not.toHaveBeenCalled();
     });
   });
 
   // ── deleteProduct ──────────────────────────────────────────────────────────
   describe('deleteProduct', () => {
-    it('should call softDelete and return success message', async () => {
+    it('should soft delete and return success message', async () => {
+      productRepo.findById.mockResolvedValue(buildProduct({ imageFileIds: [] }));
       productRepo.softDelete.mockResolvedValue(undefined);
 
       const result = await deleteProduct('prod-001');
@@ -236,7 +308,30 @@ describe('products.service', () => {
       expect(result).toEqual({ message: 'Product removed' });
     });
 
+    it('should delete imagekit files before soft deleting when imageFileIds exist', async () => {
+      const FILE_IDS = ['fid-a', 'fid-b'];
+      productRepo.findById.mockResolvedValue(buildProduct({ imageFileIds: FILE_IDS }));
+      productRepo.softDelete.mockResolvedValue(undefined);
+
+      await deleteProduct('prod-001');
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(imagekitService.deleteFiles).toHaveBeenCalledWith(FILE_IDS);
+      expect(productRepo.softDelete).toHaveBeenCalledWith('prod-001');
+    });
+
+    it('should NOT call deleteFiles when product has no imageFileIds', async () => {
+      productRepo.findById.mockResolvedValue(buildProduct({ imageFileIds: [] }));
+      productRepo.softDelete.mockResolvedValue(undefined);
+
+      await deleteProduct('prod-001');
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(imagekitService.deleteFiles).not.toHaveBeenCalled();
+    });
+
     it('should propagate errors from the repository', async () => {
+      productRepo.findById.mockResolvedValue(buildProduct({ imageFileIds: [] }));
       productRepo.softDelete.mockRejectedValue(new Error('DB error'));
 
       await expect(deleteProduct('prod-001')).rejects.toThrow('DB error');

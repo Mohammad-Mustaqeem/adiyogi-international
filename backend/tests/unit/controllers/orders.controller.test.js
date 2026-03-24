@@ -2,13 +2,14 @@
  * Unit tests for: OrdersController
  * Module path:    src/controllers/orders.controller.js
  * Created:        2026-03-22
+ * Updated:        2026-03-24 — CDN ImageKit migration (getOrderInvoice returns invoiceUrl JSON)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../src/services/orders.service.js', () => ({
-  createOrder: vi.fn(),
-  getOrderById: vi.fn(),
+  createOrder:     vi.fn(),
+  getOrderById:    vi.fn(),
   getOrderInvoice: vi.fn(),
 }));
 
@@ -26,20 +27,20 @@ const mockReq = (overrides = {}) => ({ body: {}, params: {}, ...overrides });
 const mockRes = () => {
   const res = {};
   res.status = vi.fn().mockReturnValue(res);
-  res.json = vi.fn().mockReturnValue(res);
-  res.setHeader = vi.fn().mockReturnValue(res);
-  res.download = vi.fn().mockReturnValue(res);
+  res.json   = vi.fn().mockReturnValue(res);
   return res;
 };
 
 // asyncHandler does not return the inner Promise; flush microtasks before asserting.
 const flushPromises = () => new Promise((r) => setTimeout(r, 0));
 
+const INVOICE_CDN_URL = 'https://ik.imagekit.io/test/adiyogi/invoices/invoice-ADI-0001.pdf';
+
 describe('orders.controller', () => {
   let res, next;
 
   beforeEach(() => {
-    res = mockRes();
+    res  = mockRes();
     next = vi.fn();
     vi.clearAllMocks();
   });
@@ -48,8 +49,8 @@ describe('orders.controller', () => {
   describe('createOrder', () => {
     it('should return 201 with the created order result', async () => {
       const serviceResult = {
-        order: { orderId: 'ADI-0001' },
-        pdfUrl: '/uploads/invoices/ADI-0001.pdf',
+        order:    { orderId: 'ADI-0001' },
+        pdfUrl:   INVOICE_CDN_URL,
         autoSent: { admin: true, customer: true, waReady: true },
       };
       ordersService.createOrder.mockResolvedValue(serviceResult);
@@ -106,47 +107,28 @@ describe('orders.controller', () => {
 
   // ── getOrderInvoice ────────────────────────────────────────────────────────
   describe('getOrderInvoice', () => {
-    it('should set Content-Disposition and Content-Type headers', async () => {
+    it('should return the CDN invoiceUrl as JSON', async () => {
       ordersService.getOrderInvoice.mockResolvedValue({
-        order: { orderId: 'ADI-0001' },
-        filePath: '/path/to/ADI-0001.pdf',
+        order:      { orderId: 'ADI-0001' },
+        invoiceUrl: INVOICE_CDN_URL,
       });
 
-      getOrderInvoice(mockReq({ params: { id: 'ADI-0001' } }), res, next);
+      getOrderInvoice(mockReq({ params: { id: 'order-id-001' } }), res, next);
       await flushPromises();
 
-      expect(res.setHeader).toHaveBeenCalledWith(
-        'Content-Disposition',
-        'attachment; filename="Invoice-ADI-0001.pdf"',
-      );
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+      expect(res.json).toHaveBeenCalledWith({ invoiceUrl: INVOICE_CDN_URL });
     });
 
-    it('should call res.download with the correct file path and filename', async () => {
+    it('should call the service with the correct order id from params', async () => {
       ordersService.getOrderInvoice.mockResolvedValue({
-        order: { orderId: 'ADI-0001' },
-        filePath: '/path/to/ADI-0001.pdf',
+        order:      { orderId: 'ADI-0001' },
+        invoiceUrl: INVOICE_CDN_URL,
       });
 
-      getOrderInvoice(mockReq({ params: { id: 'ADI-0001' } }), res, next);
+      getOrderInvoice(mockReq({ params: { id: 'order-id-001' } }), res, next);
       await flushPromises();
 
-      expect(res.download).toHaveBeenCalledWith('/path/to/ADI-0001.pdf', 'Invoice-ADI-0001.pdf');
-    });
-
-    it('should expose Content-Disposition header for CORS', async () => {
-      ordersService.getOrderInvoice.mockResolvedValue({
-        order: { orderId: 'ADI-0002' },
-        filePath: '/path/to/ADI-0002.pdf',
-      });
-
-      getOrderInvoice(mockReq({ params: { id: 'ADI-0002' } }), res, next);
-      await flushPromises();
-
-      expect(res.setHeader).toHaveBeenCalledWith(
-        'Access-Control-Expose-Headers',
-        'Content-Disposition',
-      );
+      expect(ordersService.getOrderInvoice).toHaveBeenCalledWith('order-id-001');
     });
 
     it('should call next with 404 ApiError when order does not exist', async () => {
@@ -156,6 +138,17 @@ describe('orders.controller', () => {
       await flushPromises();
 
       expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 404 }));
+    });
+
+    it('should call next with 503 ApiError when PDF generation is unavailable', async () => {
+      ordersService.getOrderInvoice.mockRejectedValue(
+        new ApiError(503, 'PDF generation is unavailable'),
+      );
+
+      getOrderInvoice(mockReq({ params: { id: 'order-id-001' } }), res, next);
+      await flushPromises();
+
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 503 }));
     });
   });
 });
