@@ -11,6 +11,13 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+  // ImageKit CDN
+  IMAGEKIT_PUBLIC_KEY: z.string().min(1, 'IMAGEKIT_PUBLIC_KEY is required'),
+  IMAGEKIT_PRIVATE_KEY: z.string().min(1, 'IMAGEKIT_PRIVATE_KEY is required'),
+  IMAGEKIT_URL_ENDPOINT: z.string().url('IMAGEKIT_URL_ENDPOINT must be a valid URL'),
+  IMAGEKIT_PRODUCT_IMAGES_FOLDER: z.string().default('adiyogi-internationals/product-images'),
+  IMAGEKIT_COLLECTION_IMAGES_FOLDER: z.string().default('adiyogi-internationals/collection-images'),
+  IMAGEKIT_INVOICES_FOLDER: z.string().default('adiyogi-internationals/invoices'),
 });
 
 const parsed = envSchema.safeParse(process.env);
