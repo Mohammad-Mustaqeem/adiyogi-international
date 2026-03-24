@@ -1,7 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 
 import { env } from './config/env.js';
 import adminRoutes from './routes/admin.routes.js';
@@ -12,16 +10,12 @@ import { getWAStatus, getQRBase64, initWhatsApp, resetSession } from './services
 import auth from './middleware/auth.middleware.js';
 import errorHandler from './middleware/error.middleware.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 // Middleware
 app.use(cors({ origin: env.CLIENT_URL || '*', credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Serve uploaded images/invoices as static files
-app.use('/uploads', express.static(join(__dirname, 'uploads')));
 
 // Routes
 app.use('/api/admin', adminRoutes);
