@@ -12,9 +12,6 @@ export const getOrderById = asyncHandler(async (req, res) => {
 });
 
 export const getOrderInvoice = asyncHandler(async (req, res) => {
-  const { order, filePath } = await ordersService.getOrderInvoice(req.params.id);
-  res.setHeader('Content-Disposition', `attachment; filename="Invoice-${order.orderId}.pdf"`);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
-  res.download(filePath, `Invoice-${order.orderId}.pdf`);
+  const { invoiceUrl } = await ordersService.getOrderInvoice(req.params.id);
+  res.json({ invoiceUrl });
 });
