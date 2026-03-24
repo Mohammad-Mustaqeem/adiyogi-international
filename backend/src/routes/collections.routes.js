@@ -13,8 +13,8 @@ import {
 const router = express.Router();
 
 router.get('/', getCollections);
-router.post('/', auth, uploadCollectionImage.single('image'), validate(createCollectionSchema), createCollection);
-router.put('/:id', auth, uploadCollectionImage.single('image'), validate(updateCollectionSchema), updateCollection);
+router.post('/', auth, uploadCollectionImage, validate(createCollectionSchema), createCollection);
+router.put('/:id', auth, uploadCollectionImage, validate(updateCollectionSchema), updateCollection);
 router.delete('/:id', auth, deleteCollection);
 
 export default router;
