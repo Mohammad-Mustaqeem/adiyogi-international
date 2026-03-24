@@ -26,6 +26,10 @@ export function findRecentOrders(limit = 10) {
   return Order.find().sort({ createdAt: -1 }).limit(limit).lean();
 }
 
+export function update(id, data) {
+  return Order.findByIdAndUpdate(id, data, { new: true });
+}
+
 export function updateStatus(id, status) {
   return Order.findByIdAndUpdate(id, { status }, { new: true });
 }
