@@ -74,6 +74,13 @@ export async function createOrder({ customer, items: cartItems, paymentMode }) {
         },
         { session: txnSession },
       );
+
+      // Deduct stock for each ordered item (atomic with the order in transactions)
+      await Promise.all(
+        orderItems.map((item) =>
+          productRepo.decrementStock(item.product, item.quantity, { session: txnSession }),
+        ),
+      );
     };
 
     if (session) {
@@ -129,8 +136,10 @@ export async function createOrder({ customer, items: cartItems, paymentMode }) {
       if (pdfBuffer) {
         const pdfCaption = `Invoice for Order ${order.orderId}`;
         const pdfName    = `Invoice-${order.orderId}.pdf`;
-        if (adminPhone) sendWhatsAppDocumentBuffer(adminPhone, pdfBuffer, pdfName, pdfCaption);
-        sendWhatsAppDocumentBuffer(customer.whatsapp || customer.phone, pdfBuffer, pdfName, pdfCaption);
+        const pdfSends = [];
+        if (adminPhone) pdfSends.push(sendWhatsAppDocumentBuffer(adminPhone, pdfBuffer, pdfName, pdfCaption));
+        pdfSends.push(sendWhatsAppDocumentBuffer(customer.whatsapp || customer.phone, pdfBuffer, pdfName, pdfCaption));
+        await Promise.all(pdfSends).catch((err) => logger.warn({ err }, 'WhatsApp PDF send failed (non-fatal)'));
       }
     } else {
       logger.info('WhatsApp not connected — scan QR in admin panel to enable auto-send');

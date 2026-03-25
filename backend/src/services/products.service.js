@@ -11,11 +11,8 @@ export async function getProducts({ page = 1, limit = 12, search, collection } =
   }
 
   if (search) {
-    filter.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { itemCode: { $regex: search, $options: 'i' } },
-      { description: { $regex: search, $options: 'i' } },
-    ];
+    // Use the existing text index { name, itemCode, description } — avoids full collection scan
+    filter.$text = { $search: search };
   }
 
   const [products, total] = await Promise.all([

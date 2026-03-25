@@ -13,6 +13,7 @@ export function invoiceFileName(order) {
 }
 
 function numberToWords(num) {
+  num = Math.floor(num); // guard against decimals — only whole rupees
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
     'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
   const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
@@ -58,7 +59,7 @@ async function generateInvoicePDF(order) {
       doc.rect(0, 0, 595, 110).fill(NAVY);
 
       // Try to add logo (if exists)
-      const logoPath = path.join(__dirname, '..', '..', 'client', 'public', 'logo.png');
+      const logoPath = path.join(__dirname, '..', '..', '..', 'frontend', 'public', 'logo.png');
       if (fs.existsSync(logoPath)) {
         try {
           doc.image(logoPath, 40, 15, { height: 75 });

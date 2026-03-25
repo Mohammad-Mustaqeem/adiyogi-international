@@ -2,12 +2,12 @@
  * WhatsApp Service — zero top-level third-party imports.
  * Only Node built-ins at the top so this file can NEVER crash server.js on import.
  */
-import { readFileSync, existsSync, mkdirSync, rmSync } from 'fs';
+import { mkdirSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const AUTH_DIR  = join(__dirname, '..', 'wa_auth');
+const AUTH_DIR  = join(__dirname, '..', '..', 'wa_auth');
 
 let sock           = null;
 let isReady        = false;
@@ -192,17 +192,6 @@ export async function sendWhatsAppMessage(phone, message) {
   if (!isReady || !sock) return false;
   try { await sock.sendMessage(toJID(phone), { text: message }); return true; }
   catch (err) { console.error('WA send error:', err.message); return false; }
-}
-
-export async function sendWhatsAppDocument(phone, filePath, filename, caption) {
-  if (!isReady || !sock || !existsSync(filePath)) return false;
-  try {
-    await sock.sendMessage(toJID(phone), {
-      document: readFileSync(filePath), mimetype: 'application/pdf',
-      fileName: filename, caption: caption || filename,
-    });
-    return true;
-  } catch (err) { console.error('WA doc error:', err.message); return false; }
 }
 
 export async function sendWhatsAppDocumentBuffer(phone, buffer, filename, caption) {
