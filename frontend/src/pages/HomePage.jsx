@@ -11,7 +11,7 @@ import { ITEMS_PER_PAGE } from "@/constants";
    Auto-slides every 4s, pauses on hover,
    supports swipe/drag, click → product detail
 ───────────────────────────────────────────── */
-function ProductCarousel() {
+function ProductCarousel({ collections }) {
   const navigate = useNavigate();
   const [slides, setSlides] = useState([]);
   const [index, setIndex] = useState(0);
@@ -20,19 +20,17 @@ function ProductCarousel() {
   const timerRef = useRef(null);
 
   useEffect(() => {
+    if (!collections?.length) return;
+    const newArrivals = collections.find((c) => c.slug === "new-arrivals");
+    if (!newArrivals) return;
     api
-      .get("/collections")
-      .then(async (r) => {
-        const newArrivals = r.data.find((c) => c.slug === "new-arrivals");
-        if (!newArrivals) return;
-        const res = await api.get("/products", {
-          params: { limit: 12, page: 1, collection: newArrivals._id },
-        });
+      .get("/products", { params: { limit: 12, page: 1, collection: newArrivals._id } })
+      .then((res) => {
         const prods = res.data.products.filter((p) => p.images?.length > 0);
         setSlides(prods);
       })
       .catch(() => {});
-  }, []);
+  }, [collections]);
 
   const goTo = useCallback((idx, total) => {
     setIndex(((idx % total) + total) % total);
@@ -376,7 +374,7 @@ export default function HomePage() {
       </section>
 
       {/* ── PRODUCT CAROUSEL ── */}
-      <ProductCarousel />
+      <ProductCarousel collections={collections} />
 
       {/* ── COLLECTIONS ── */}
       <section id="collections" className="py-12 sm:py-16 lg:py-20 bg-white">
