@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
-import api from '../api';
-import toast from 'react-hot-toast';
+import { useState, useEffect } from "react";
+import api from "@/lib/api-client";
+import { loginSchema, adminSetupSchema, productSchema, collectionSchema, validateFields } from "@/lib/validators";
+import { STORAGE_KEYS } from "@/constants";
+import toast from "react-hot-toast";
 
 export default function AdminPage() {
-  const [token,    setToken]    = useState(() => localStorage.getItem('adiyogi_admin_token'));
+  const [token,    setToken]    = useState(() => localStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN));
   const [view,     setView]     = useState('dashboard');
   const [sideOpen, setSideOpen] = useState(false);
 
-  const logout = () => { localStorage.removeItem('adiyogi_admin_token'); setToken(null); };
+  const logout = () => { localStorage.removeItem(STORAGE_KEYS.ADMIN_TOKEN); setToken(null); };
   if (!token) return <AdminLogin onLogin={setToken} />;
 
   const navItems = [
@@ -74,23 +76,33 @@ export default function AdminPage() {
 
 /* ─── LOGIN ─── */
 function AdminLogin({ onLogin }) {
-  const [form,      setForm]      = useState({ username: '', password: '' });
-  const [showSetup, setShowSetup] = useState(false);
-  const [setupForm, setSetupForm] = useState({ username: '', password: '', name: 'Admin', whatsappNumber: '' });
-  const [loading,   setLoading]   = useState(false);
+  const [form,        setForm]        = useState({ username: '', password: '' });
+  const [errors,      setErrors]      = useState({});
+  const [showSetup,   setShowSetup]   = useState(false);
+  const [setupForm,   setSetupForm]   = useState({ username: '', password: '', name: 'Admin', whatsappNumber: '' });
+  const [setupErrors, setSetupErrors] = useState({});
+  const [loading,     setLoading]     = useState(false);
 
   const handleLogin = async e => {
-    e.preventDefault(); setLoading(true);
+    e.preventDefault();
+    const fieldErrors = validateFields(loginSchema, form);
+    if (Object.keys(fieldErrors).length > 0) { setErrors(fieldErrors); toast.error(Object.values(fieldErrors)[0]); return; }
+    setErrors({});
+    setLoading(true);
     try {
       const { data } = await api.post('/admin/login', form);
-      localStorage.setItem('adiyogi_admin_token', data.token);
+      localStorage.setItem(STORAGE_KEYS.ADMIN_TOKEN, data.token);
       onLogin(data.token);
     } catch (err) { toast.error(err.response?.data?.message || 'Invalid credentials'); }
     finally { setLoading(false); }
   };
 
   const handleSetup = async e => {
-    e.preventDefault(); setLoading(true);
+    e.preventDefault();
+    const fieldErrors = validateFields(adminSetupSchema, setupForm);
+    if (Object.keys(fieldErrors).length > 0) { setSetupErrors(fieldErrors); toast.error(Object.values(fieldErrors)[0]); return; }
+    setSetupErrors({});
+    setLoading(true);
     try {
       await api.post('/admin/setup', setupForm);
       toast.success('Admin created! Please login.'); setShowSetup(false);
@@ -108,14 +120,16 @@ function AdminLogin({ onLogin }) {
         </div>
         <div className="p-5 sm:p-8">
           {!showSetup ? (
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4" noValidate>
               <div>
                 <Label>Username</Label>
-                <input value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} className="input" placeholder="admin" required />
+                <input value={form.username} onChange={e => { setForm(p => ({...p, username: e.target.value})); if (errors.username) setErrors(p => ({...p, username: undefined})); }} className={`input ${errors.username ? 'border-red-400' : ''}`} placeholder="admin" />
+                <FieldError msg={errors.username} />
               </div>
               <div>
                 <Label>Password</Label>
-                <input type="password" value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} className="input" placeholder="••••••••" required />
+                <input type="password" value={form.password} onChange={e => { setForm(p => ({...p, password: e.target.value})); if (errors.password) setErrors(p => ({...p, password: undefined})); }} className={`input ${errors.password ? 'border-red-400' : ''}`} placeholder="••••••••" />
+                <FieldError msg={errors.password} />
               </div>
               <button type="submit" disabled={loading} className="w-full btn-primary">{loading ? 'Logging in...' : 'Login'}</button>
               <p className="text-center text-xs text-gray-400">
@@ -124,7 +138,7 @@ function AdminLogin({ onLogin }) {
               </p>
             </form>
           ) : (
-            <form onSubmit={handleSetup} className="space-y-4">
+            <form onSubmit={handleSetup} className="space-y-4" noValidate>
               <h2 className="font-display font-bold text-navy-800 text-lg sm:text-xl">Create Admin Account</h2>
               {[
                 { key:'name',           label:'Display Name',                     ph:'Admin' },
@@ -135,8 +149,9 @@ function AdminLogin({ onLogin }) {
                 <div key={f.key}>
                   <Label>{f.label}</Label>
                   <input type={f.type||'text'} value={setupForm[f.key]}
-                    onChange={e => setSetupForm(p => ({...p, [f.key]: e.target.value}))}
-                    className="input" placeholder={f.ph} required />
+                    onChange={e => { setSetupForm(p => ({...p, [f.key]: e.target.value})); if (setupErrors[f.key]) setSetupErrors(p => ({...p, [f.key]: undefined})); }}
+                    className={`input ${setupErrors[f.key] ? 'border-red-400' : ''}`} placeholder={f.ph} />
+                  <FieldError msg={setupErrors[f.key]} />
                 </div>
               ))}
               <button type="submit" disabled={loading} className="w-full btn-primary">{loading ? 'Creating...' : 'Create Admin'}</button>
@@ -342,6 +357,7 @@ function CreateCollectionModal({ onCreated, onClose }) {
   const [image,   setImage]   = useState(null);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [errors,  setErrors]  = useState({});
 
   const handleImageChange = e => {
     const file = e.target.files[0];
@@ -352,7 +368,9 @@ function CreateCollectionModal({ onCreated, onClose }) {
   };
 
   const handleCreate = async () => {
-    if (!name.trim()) return toast.error('Collection name required');
+    const fieldErrors = validateFields(collectionSchema, { name, description: desc });
+    if (Object.keys(fieldErrors).length > 0) { setErrors(fieldErrors); toast.error(Object.values(fieldErrors)[0]); return; }
+    setErrors({});
     setLoading(true);
     try {
       const fd = new FormData();
@@ -377,7 +395,8 @@ function CreateCollectionModal({ onCreated, onClose }) {
         <div className="p-5 space-y-4">
           <div>
             <Label>Collection Name *</Label>
-            <input value={name} onChange={e => setName(e.target.value)} className="input" placeholder="e.g. Spray Nozzles" />
+            <input value={name} onChange={e => { setName(e.target.value); if (errors.name) setErrors(p => ({...p, name: undefined})); }} className={`input ${errors.name ? 'border-red-400' : ''}`} placeholder="e.g. Spray Nozzles" />
+            <FieldError msg={errors.name} />
           </div>
           <div>
             <Label>Description</Label>
@@ -431,6 +450,7 @@ function ProductsView() {
   const [loading,            setLoading]            = useState(false);
   const [showUnitModal,      setShowUnitModal]      = useState(false);
   const [showCreateColl,     setShowCreateColl]     = useState(false);
+  const [errors,             setErrors]             = useState({});
 
   const EMPTY_FORM = {
     name: '', itemCode: '', hsnCode: '', salesPrice: '', purchasePrice: '',
@@ -447,7 +467,7 @@ function ProductsView() {
 
   const resetForm = () => {
     setForm(EMPTY_FORM);
-    setImages([]); setImagePreviews([]); setEditing(null);
+    setImages([]); setImagePreviews([]); setEditing(null); setErrors({});
   };
 
   const handleImageChange = e => {
@@ -480,7 +500,11 @@ function ProductsView() {
   };
 
   const handleSubmit = async e => {
-    e.preventDefault(); setLoading(true);
+    e.preventDefault();
+    const fieldErrors = validateFields(productSchema, form);
+    if (Object.keys(fieldErrors).length > 0) { setErrors(fieldErrors); toast.error(Object.values(fieldErrors)[0]); return; }
+    setErrors({});
+    setLoading(true);
     try {
       const fd = new FormData();
       // Append all scalar fields
@@ -544,24 +568,24 @@ function ProductsView() {
               <button onClick={() => { setShowForm(false); resetForm(); }} className="text-gray-400 hover:text-gray-600 text-xl p-1">✕</button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4" noValidate>
               {/* Product Name */}
-              <FField label="Product Name *" value={form.name} onChange={v => setForm(p => ({...p, name: v}))} placeholder="Product name" required full />
+              <FField label="Product Name *" value={form.name} onChange={v => { setForm(p => ({...p, name: v})); if (errors.name) setErrors(p => ({...p, name: undefined})); }} placeholder="Product name" full error={errors.name} />
 
               {/* Item Code */}
-              <FField label="Item Code *" value={form.itemCode} onChange={v => setForm(p => ({...p, itemCode: v}))} placeholder="110-SPACS" required />
+              <FField label="Item Code *" value={form.itemCode} onChange={v => { setForm(p => ({...p, itemCode: v})); if (errors.itemCode) setErrors(p => ({...p, itemCode: undefined})); }} placeholder="110-SPACS" error={errors.itemCode} />
 
               {/* HSN Code */}
-              <FField label="HSN Code" value={form.hsnCode} onChange={v => setForm(p => ({...p, hsnCode: v}))} placeholder="84249000" />
+              <FField label="HSN Code" value={form.hsnCode} onChange={v => { setForm(p => ({...p, hsnCode: v})); if (errors.hsnCode) setErrors(p => ({...p, hsnCode: undefined})); }} placeholder="84249000" error={errors.hsnCode} />
 
               {/* Sales Price (was Price) */}
-              <FField label="Sales Price (₹) *" type="number" value={form.salesPrice} onChange={v => setForm(p => ({...p, salesPrice: v}))} placeholder="480" required />
+              <FField label="Sales Price (₹) *" type="number" value={form.salesPrice} onChange={v => { setForm(p => ({...p, salesPrice: v})); if (errors.salesPrice) setErrors(p => ({...p, salesPrice: undefined})); }} placeholder="480" error={errors.salesPrice} />
 
               {/* Purchase Price (was Original Price) */}
-              <FField label="Purchase Price (₹)" type="number" value={form.purchasePrice} onChange={v => setForm(p => ({...p, purchasePrice: v}))} placeholder="400" />
+              <FField label="Purchase Price (₹)" type="number" value={form.purchasePrice} onChange={v => { setForm(p => ({...p, purchasePrice: v})); if (errors.purchasePrice) setErrors(p => ({...p, purchasePrice: undefined})); }} placeholder="400" error={errors.purchasePrice} />
 
               {/* Stock */}
-              <FField label="Stock Quantity" type="number" value={form.stock} onChange={v => setForm(p => ({...p, stock: v}))} placeholder="100" />
+              <FField label="Stock Quantity" type="number" value={form.stock} onChange={v => { setForm(p => ({...p, stock: v})); if (errors.stock) setErrors(p => ({...p, stock: undefined})); }} placeholder="100" error={errors.stock} />
 
               {/* Unit — Edit Unit button instead of dropdown */}
               <div>
@@ -641,7 +665,7 @@ function ProductsView() {
               </div>
 
               {/* Place (was Place / Location) */}
-              <FField label="Place" value={form.place} onChange={v => setForm(p => ({...p, place: v}))} placeholder="KC 12" />
+              <FField label="Place" value={form.place} onChange={v => { setForm(p => ({...p, place: v})); if (errors.place) setErrors(p => ({...p, place: undefined})); }} placeholder="KC 12" error={errors.place} />
 
               {/* Description */}
               <div className="sm:col-span-2">
@@ -748,6 +772,7 @@ function CollectionsView() {
   const [image,        setImage]        = useState(null);
   const [preview,      setPreview]      = useState(null);
   const [loading,      setLoading]      = useState(false);
+  const [errors,       setErrors]       = useState({});
   const [deleting,     setDeleting]     = useState(null); // id being deleted
 
   const fetchCollections = () =>
@@ -755,7 +780,7 @@ function CollectionsView() {
 
   useEffect(() => { fetchCollections(); }, []);
 
-  const resetForm = () => { setName(''); setDesc(''); setImage(null); setPreview(null); };
+  const resetForm = () => { setName(''); setDesc(''); setImage(null); setPreview(null); setErrors({}); };
 
   const handleImageChange = e => {
     const file = e.target.files[0];
@@ -764,7 +789,9 @@ function CollectionsView() {
 
   const handleCreate = async e => {
     e.preventDefault();
-    if (!name.trim()) return toast.error('Collection name is required');
+    const fieldErrors = validateFields(collectionSchema, { name, description: desc });
+    if (Object.keys(fieldErrors).length > 0) { setErrors(fieldErrors); toast.error(Object.values(fieldErrors)[0]); return; }
+    setErrors({});
     setLoading(true);
     try {
       const fd = new FormData();
@@ -804,10 +831,11 @@ function CollectionsView() {
               <h2 className="font-display font-bold text-lg text-navy-800">New Collection</h2>
               <button onClick={() => { setShowForm(false); resetForm(); }} className="text-gray-400 hover:text-gray-600 text-xl p-1">✕</button>
             </div>
-            <form onSubmit={handleCreate} className="p-5 space-y-4">
+            <form onSubmit={handleCreate} className="p-5 space-y-4" noValidate>
               <div>
                 <Label>Collection Name *</Label>
-                <input value={name} onChange={e => setName(e.target.value)} className="input" placeholder="e.g. Spray Nozzles" required />
+                <input value={name} onChange={e => { setName(e.target.value); if (errors.name) setErrors(p => ({...p, name: undefined})); }} className={`input ${errors.name ? 'border-red-400' : ''}`} placeholder="e.g. Spray Nozzles" />
+                <FieldError msg={errors.name} />
               </div>
               <div>
                 <Label>Description</Label>
@@ -909,6 +937,7 @@ function OrdersView() {
       setOrders(r.data.orders); setTotal(r.data.total); setPages(r.data.pages);
     }).finally(() => setLoading(false));
   };
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- data fetching pattern
   useEffect(() => { fetchOrders(); }, [page, filter]);
 
   const updateStatus = async (id, status) => {
@@ -1073,16 +1102,17 @@ function OrdersView() {
 
 /* ─── WHATSAPP SETUP ─── */
 function WhatsAppSetupView() {
-  const [status,  setStatus]  = useState(null);
-  const [qrImage, setQrImage] = useState(null);
-  const [polling, setPolling] = useState(true);
+  const [status,       setStatus]       = useState(null);
+  const [qrImage,      setQrImage]      = useState(null);
+  const [polling,      setPolling]      = useState(true);
+  const [initializing, setInitializing] = useState(false);
 
   const fetchStatus = async () => {
     try {
       const { data } = await api.get('/whatsapp/status');
       setStatus(data);
       if (data.isReady) { setQrImage(null); setPolling(false); return; }
-      if (data.error && !data.hasQR) { setPolling(false); return; }
+      if (data.error && !data.hasQR && !data.isInitializing) { setPolling(false); return; }
       if (data.hasQR) {
         const qrRes = await api.get('/whatsapp/qr');
         if (qrRes.data.qr) setQrImage(qrRes.data.qr);
@@ -1090,12 +1120,39 @@ function WhatsAppSetupView() {
     } catch { setPolling(false); }
   };
 
+  const handleInit = async () => {
+    setInitializing(true);
+    try {
+      await api.post('/whatsapp/init');
+      toast.success('WhatsApp initialization started');
+      setPolling(true);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to initialize WhatsApp');
+    } finally {
+      setInitializing(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!confirm('This will disconnect WhatsApp and require a new QR scan. Continue?')) return;
+    try {
+      await api.post('/whatsapp/reset');
+      setStatus(null); setQrImage(null);
+      toast.success('Session cleared — click Initialize to get a new QR code');
+      setPolling(true);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reset session');
+    }
+  };
+
+  /* eslint-disable react-hooks/set-state-in-effect -- data fetching with polling */
   useEffect(() => {
     fetchStatus();
     if (!polling) return;
     const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   }, [polling]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <div>
@@ -1127,16 +1184,29 @@ function WhatsAppSetupView() {
           </p>
           {status?.error && (
             <div className="mt-2 space-y-1">
-              <p className="text-amber-700 text-sm">Run these commands in your backend folder to set it up:</p>
-              <code className="block bg-amber-100 text-amber-900 text-xs rounded-lg px-3 py-2 font-mono mt-1">
-                npm install<br/>
-                npm run dev
-              </code>
-              <p className="text-amber-600 text-xs mt-2">Then refresh this page — a QR code will appear to scan.</p>
+              <p className="text-amber-700 text-sm">{status.error}</p>
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={handleInit}
+                  disabled={initializing}
+                  className="px-5 py-2 bg-amber-600 text-white rounded-xl font-semibold text-sm hover:bg-amber-700 disabled:opacity-50 transition"
+                >
+                  {initializing ? 'Retrying...' : 'Retry Connection'}
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="px-5 py-2 bg-red-100 text-red-700 rounded-xl font-semibold text-sm hover:bg-red-200 transition"
+                >
+                  Reset Session
+                </button>
+              </div>
             </div>
           )}
           {status?.isReady && (
-            <p className="text-green-600 text-sm mt-1">Messages and PDFs are sent automatically when a customer places an order.</p>
+            <div className="mt-1 flex items-center gap-3">
+              <p className="text-green-600 text-sm">Messages and PDFs are sent automatically when a customer places an order.</p>
+              <button onClick={handleReset} className="text-xs text-gray-400 hover:text-red-500 underline whitespace-nowrap">Reset</button>
+            </div>
           )}
           {!status?.isReady && !status?.error && status?.hasQR && (
             <p className="text-blue-700 text-sm mt-1">Open WhatsApp → More Options → Linked Devices → Link a Device → Scan QR</p>
@@ -1161,9 +1231,29 @@ function WhatsAppSetupView() {
             </>
           ) : (
             <div className="py-10">
-              <div className="w-12 h-12 border-4 border-navy-200 border-t-navy-600 rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-gray-600 font-medium">Waiting for QR code...</p>
-              <p className="text-gray-400 text-xs mt-2">The backend is initializing WhatsApp. This takes ~30 seconds.</p>
+              {status?.isInitializing ? (
+                <>
+                  <div className="w-12 h-12 border-4 border-navy-200 border-t-navy-600 rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-gray-600 font-medium">Initializing WhatsApp...</p>
+                  <p className="text-gray-400 text-xs mt-2">Waiting for QR code. This takes ~30 seconds.</p>
+                  <button onClick={handleReset} className="mt-4 text-xs text-gray-400 hover:text-red-500 underline">
+                    Stuck? Reset Session
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="text-4xl mb-4">📱</div>
+                  <p className="text-gray-600 font-medium mb-2">WhatsApp is not initialized</p>
+                  <p className="text-gray-400 text-xs mb-4">Click below to start the WhatsApp service and generate a QR code.</p>
+                  <button
+                    onClick={handleInit}
+                    disabled={initializing}
+                    className="px-6 py-2.5 bg-navy-600 text-white rounded-xl font-semibold text-sm hover:bg-navy-700 disabled:opacity-50 transition"
+                  >
+                    {initializing ? 'Starting...' : 'Initialize WhatsApp'}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -1196,11 +1286,15 @@ const Label = ({ children }) => (
   <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-1.5">{children}</label>
 );
 
-const FField = ({ label, value, onChange, type = 'text', placeholder, required, full }) => (
+const FieldError = ({ msg }) =>
+  msg ? <p className="text-xs text-red-500 mt-1">{msg}</p> : null;
+
+const FField = ({ label, value, onChange, type = 'text', placeholder, full, error }) => (
   <div className={full ? 'sm:col-span-2' : ''}>
     <Label>{label}</Label>
     <input type={type} value={value} onChange={e => onChange(e.target.value)}
-      className="input" placeholder={placeholder} required={required} />
+      className={`input ${error ? 'border-red-400' : ''}`} placeholder={placeholder} />
+    <FieldError msg={error} />
   </div>
 );
 
