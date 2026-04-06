@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import ReactCrop, { centerCrop, makeAspectCrop } from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 import api from "@/lib/api-client";
 import { loginSchema, adminSetupSchema, productSchema, collectionSchema, validateFields } from "@/lib/validators";
 import { STORAGE_KEYS } from "@/constants";
@@ -451,10 +453,17 @@ function ProductsView() {
   const [showUnitModal,      setShowUnitModal]      = useState(false);
   const [showCreateColl,     setShowCreateColl]     = useState(false);
   const [errors,             setErrors]             = useState({});
+  const [cropModalOpen,      setCropModalOpen]      = useState(false);
+  const [cropImageSrc,       setCropImageSrc]       = useState(null);
+  const [cropIndex,          setCropIndex]          = useState(null);
+  const [crop,               setCrop]               = useState();
+  const [completedCrop,     setCompletedCrop]      = useState();
+  const imgRef = useRef(null);
 
   const EMPTY_FORM = {
     name: '', itemCode: '', hsnCode: '', salesPrice: '', purchasePrice: '',
     stock: '', baseUnit: 'PAC', secondaryUnit: 'NOS', unitConversionRate: 10,
+    gstRate: 5,
     collections: [], place: '', description: '',
   };
   const [form, setForm] = useState(EMPTY_FORM);
@@ -470,11 +479,80 @@ function ProductsView() {
     setImages([]); setImagePreviews([]); setEditing(null); setErrors({});
   };
 
+  function centerAspectCrop(mediaWidth, mediaHeight) {
+    return centerCrop(
+      makeAspectCrop({ unit: "%", width: 90 }, 1, mediaWidth, mediaHeight),
+      mediaWidth,
+      mediaHeight
+    );
+  }
+
   const handleImageChange = e => {
-    const files = [...e.target.files];
-    setImages(files);
-    const previews = files.map(f => URL.createObjectURL(f));
-    setImagePreviews(previews);
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setCropImageSrc(reader.result);
+        setCropIndex(null);
+        setCropModalOpen(true);
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = "";
+  };
+
+  const onImageLoad = e => {
+    const { width, height } = e.currentTarget;
+    setCrop(centerAspectCrop(width, height));
+  };
+
+  const getCroppedImg = (image, crop) => {
+    const canvas = document.createElement("canvas");
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+    const ctx = canvas.getContext("2d");
+    const maxSize = 800;
+    const size = Math.min(maxSize, Math.max(crop.width * scaleX, crop.height * scaleY));
+    canvas.width = size;
+    canvas.height = size;
+    ctx.drawImage(
+      image,
+      crop.x * scaleX,
+      crop.y * scaleY,
+      crop.width * scaleX,
+      crop.height * scaleY,
+      0,
+      0,
+      size,
+      size
+    );
+    return new Promise(resolve => {
+      canvas.toBlob(blob => {
+        const file = new File([blob], "cropped.jpg", { type: "image/jpeg" });
+        resolve(file);
+      }, "image/jpeg", 0.85);
+    });
+  };
+
+  const applyCrop = async () => {
+    if (!cropImageSrc || !completedCrop || !imgRef.current) return;
+    const croppedFile = await getCroppedImg(imgRef.current, completedCrop);
+    if (cropIndex !== null) {
+      const newImages = [...images];
+      newImages[cropIndex] = croppedFile;
+      setImages(newImages);
+      const newPreviews = [...imagePreviews];
+      newPreviews[cropIndex] = URL.createObjectURL(croppedFile);
+      setImagePreviews(newPreviews);
+    } else {
+      setImages(prev => [...prev, croppedFile]);
+      setImagePreviews(prev => [...prev, URL.createObjectURL(croppedFile)]);
+    }
+    setCropModalOpen(false);
+    setCropImageSrc(null);
+    setCropIndex(null);
+    setCrop(undefined);
+    setCompletedCrop(undefined);
   };
 
   const openEdit = p => {
@@ -486,6 +564,7 @@ function ProductsView() {
       baseUnit: p.baseUnit || 'PAC',
       secondaryUnit: p.secondaryUnit || 'NOS',
       unitConversionRate: p.unitConversionRate || 10,
+      gstRate: p.gstRate || 5,
       collections: (p.collections || []).map(c => c._id || c),
       place: p.place || '',
       description: p.description || '',
@@ -586,6 +665,22 @@ function ProductsView() {
 
               {/* Stock */}
               <FField label="Stock Quantity" type="number" value={form.stock} onChange={v => { setForm(p => ({...p, stock: v})); if (errors.stock) setErrors(p => ({...p, stock: undefined})); }} placeholder="100" error={errors.stock} />
+
+              {/* GST Rate */}
+              <div>
+                <Label>GST Rate (%)</Label>
+                <select
+                  value={form.gstRate}
+                  onChange={e => setForm(p => ({...p, gstRate: Number(e.target.value)}))}
+                  className="input"
+                >
+                  <option value={0}>0%</option>
+                  <option value={5}>5%</option>
+                  <option value={12}>12%</option>
+                  <option value={18}>18%</option>
+                  <option value={28}>28%</option>
+                </select>
+              </div>
 
               {/* Unit — Edit Unit button instead of dropdown */}
               <div>
@@ -690,7 +785,7 @@ function ProductsView() {
                 {imagePreviews.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-3">
                     {imagePreviews.map((src, i) => (
-                      <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-navy-100 shadow-sm">
+                      <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-navy-100 shadow-sm group">
                         <img
                           src={src.startsWith('blob:') || src.startsWith('http') || src.startsWith('/') ? src : src}
                           alt={`Preview ${i + 1}`}
@@ -698,6 +793,55 @@ function ProductsView() {
                         />
                         <div className="absolute inset-0 bg-black/10 flex items-end justify-center pb-0.5">
                           <span className="text-white text-[9px] font-bold">{i + 1}</span>
+                        </div>
+                        <div className="absolute top-0 right-0 flex flex-col">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newImages = images.filter((_, idx) => idx !== i);
+                              const newPreviews = imagePreviews.filter((_, idx) => idx !== i);
+                              setImages(newImages);
+                              setImagePreviews(newPreviews);
+                            }}
+                            className="w-5 h-5 bg-red-500 text-white rounded-bl-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Delete image"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                setCropImageSrc(reader.result);
+                                setCropIndex(i);
+                                setCropModalOpen(true);
+                              };
+                              if (src.startsWith('blob:')) {
+                                reader.readAsDataURL(images[i]);
+                              } else {
+                                const img = new Image();
+                                img.crossOrigin = "anonymous";
+                                img.onload = () => {
+                                  const canvas = document.createElement("canvas");
+                                  canvas.width = img.width;
+                                  canvas.height = img.height;
+                                  const ctx = canvas.getContext("2d");
+                                  ctx.drawImage(img, 0, 0);
+                                  canvas.toBlob(blob => {
+                                    reader.readAsDataURL(blob);
+                                  }, "image/jpeg");
+                                };
+                                img.src = src;
+                              }
+                            }}
+                            className="w-5 h-5 bg-navy-700 text-white rounded-tr-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Re-crop image"
+                          >
+                            <PencilIcon className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -713,6 +857,41 @@ function ProductsView() {
                 <button type="button" onClick={() => { setShowForm(false); resetForm(); }} className="flex-1 btn-secondary">Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Image Crop Modal */}
+      {cropModalOpen && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-8">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
+              <h2 className="font-display font-bold text-lg text-navy-800">Crop Image (1:1)</h2>
+              <button onClick={() => { setCropModalOpen(false); setCropImageSrc(null); setCropIndex(null); }} className="text-gray-400 hover:text-gray-600 text-xl p-1">✕</button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {cropImageSrc && (
+                <ReactCrop
+                  crop={crop}
+                  onChange={(_, percentCrop) => setCrop(percentCrop)}
+                  onComplete={c => setCompletedCrop(c)}
+                  aspect={1}
+                  centerPercent={90}
+                >
+                  <img
+                    ref={imgRef}
+                    src={cropImageSrc}
+                    onLoad={onImageLoad}
+                    alt="Crop"
+                    className="max-h-[50vh] w-full object-contain"
+                  />
+                </ReactCrop>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white rounded-b-2xl">
+              <button onClick={applyCrop} className="flex-1 btn-primary">Apply Crop</button>
+              <button onClick={() => { setCropModalOpen(false); setCropImageSrc(null); setCropIndex(null); }} className="flex-1 btn-secondary">Cancel</button>
+            </div>
           </div>
         </div>
       )}
