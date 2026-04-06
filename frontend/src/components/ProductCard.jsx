@@ -12,11 +12,7 @@ export default function ProductCard({ product }) {
   const [adding, setAdding] = useState(false);
 
   const salesPrice = product.salesPrice ?? product.price ?? 0;
-  const purchasePrice = product.purchasePrice ?? product.originalPrice;
   const conversion = product.unitConversionRate ?? product.packSize ?? 10;
-  const discount = purchasePrice
-    ? Math.round((1 - salesPrice / purchasePrice) * 100)
-    : 0;
 
   const handleAdd = (e) => {
     e.stopPropagation();
@@ -41,11 +37,6 @@ export default function ProductCard({ product }) {
     >
       {/* Badges */}
       <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-        {discount > 0 && (
-          <span className="badge bg-red-500 text-white text-[9px] sm:text-[10px]">
-            {discount}% OFF
-          </span>
-        )}
         {product.stock === 0 && (
           <span className="badge bg-gray-500 text-white text-[9px] sm:text-[10px]">
             Out of Stock
@@ -106,11 +97,6 @@ export default function ProductCard({ product }) {
           <span className="font-display font-bold text-base sm:text-lg lg:text-xl text-navy-700">
             ₹{formatCurrency(salesPrice)}
           </span>
-          {purchasePrice && (
-            <span className="text-[10px] sm:text-xs text-gray-400 line-through">
-              ₹{formatCurrency(purchasePrice)}
-            </span>
-          )}
           <span className="text-[9px] sm:text-[10px] text-gray-400">/PAC</span>
         </div>
 

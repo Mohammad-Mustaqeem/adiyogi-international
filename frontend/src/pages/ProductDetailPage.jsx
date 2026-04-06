@@ -64,11 +64,7 @@ export default function ProductDetailPage() {
   if (!product) return null;
 
   const salesPrice = product.salesPrice ?? product.price ?? 0;
-  const purchasePrice = product.purchasePrice ?? product.originalPrice;
   const conversion = product.unitConversionRate ?? 10;
-  const discount = purchasePrice
-    ? Math.round((1 - salesPrice / purchasePrice) * 100)
-    : 0;
   const images = product.images?.length ? product.images : [];
 
   return (
@@ -114,6 +110,16 @@ export default function ProductDetailPage() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Back button */}
+        <div className="mb-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-navy-600 hover:text-navy-800 font-semibold transition-colors"
+          >
+            <ArrowLeftIcon className="w-5 h-5" /> Back to Products
+          </button>
+        </div>
+
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm text-gray-500 mb-6">
           <button
@@ -177,11 +183,6 @@ export default function ProductDetailPage() {
               )}
 
               <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-                {discount > 0 && (
-                  <span className="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
-                    {discount}% OFF
-                  </span>
-                )}
                 {product.stock === 0 && (
                   <span className="bg-gray-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
                     Out of Stock
@@ -255,16 +256,6 @@ export default function ProductDetailPage() {
                 <span className="font-display font-black text-3xl sm:text-4xl text-navy-700">
                   ₹{formatCurrency(salesPrice)}
                 </span>
-                {purchasePrice && (
-                  <span className="text-lg text-gray-400 line-through mb-1">
-                    ₹{formatCurrency(purchasePrice)}
-                  </span>
-                )}
-                {discount > 0 && (
-                  <span className="mb-1 bg-green-100 text-green-700 text-sm font-bold px-2.5 py-1 rounded-full">
-                    Save {discount}%
-                  </span>
-                )}
               </div>
               <div className="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
                 {product.gstRate && (
@@ -409,15 +400,6 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* Back button */}
-        <div className="mt-10">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-navy-600 hover:text-navy-800 font-semibold transition-colors"
-          >
-            <ArrowLeftIcon className="w-5 h-5" /> Back to Products
-          </button>
-        </div>
       </div>
     </div>
   );

@@ -447,6 +447,8 @@ function ProductsView() {
   const [editing,            setEditing]            = useState(null);
   const [images,             setImages]             = useState([]);
   const [imagePreviews,      setImagePreviews]      = useState([]);
+  const [existingImages,     setExistingImages]     = useState([]); // [{url, fileId}] from CDN
+  const [removedFileIds,     setRemovedFileIds]     = useState([]); // fileIds queued for deletion
   const [loading,            setLoading]            = useState(false);
   const [showUnitModal,      setShowUnitModal]      = useState(false);
   const [showCreateColl,     setShowCreateColl]     = useState(false);
@@ -467,7 +469,7 @@ function ProductsView() {
 
   const resetForm = () => {
     setForm(EMPTY_FORM);
-    setImages([]); setImagePreviews([]); setEditing(null); setErrors({});
+    setImages([]); setImagePreviews([]); setExistingImages([]); setRemovedFileIds([]); setEditing(null); setErrors({});
   };
 
   const handleImageChange = e => {
@@ -490,7 +492,13 @@ function ProductsView() {
       place: p.place || '',
       description: p.description || '',
     });
-    setImagePreviews(p.images || []);
+    // Build existingImages from parallel arrays; fall back gracefully if fileIds are missing
+    const urls    = p.images        ?? [];
+    const fileIds = p.imageFileIds  ?? [];
+    setExistingImages(urls.map((url, i) => ({ url, fileId: fileIds[i] ?? null })));
+    setImagePreviews([]);
+    setImages([]);
+    setRemovedFileIds([]);
     setShowForm(true);
   };
 
@@ -514,6 +522,10 @@ function ProductsView() {
       });
       // Send collections as JSON string
       fd.append('collections', JSON.stringify(form.collections));
+      // Tell the backend which existing CDN images to delete
+      if (editing && removedFileIds.length) {
+        fd.append('removeImageIds', JSON.stringify(removedFileIds));
+      }
       images.forEach(img => fd.append('images', img));
       if (editing) await api.put(`/products/${editing}`, fd);
       else         await api.post('/products', fd);
@@ -686,18 +698,42 @@ function ProductsView() {
                 />
                 <p className="text-xs text-gray-400 mt-1">Max 10MB each.</p>
 
-                {/* Image mini previews */}
-                {imagePreviews.length > 0 && (
+                {/* Image previews — existing CDN images + newly selected files */}
+                {(existingImages.length > 0 || imagePreviews.length > 0) && (
                   <div className="flex flex-wrap gap-2 mt-3">
-                    {imagePreviews.map((src, i) => (
-                      <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-navy-100 shadow-sm">
-                        <img
-                          src={src.startsWith('blob:') || src.startsWith('http') || src.startsWith('/') ? src : src}
-                          alt={`Preview ${i + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/10 flex items-end justify-center pb-0.5">
+                    {/* Existing CDN images */}
+                    {existingImages.map((img, i) => (
+                      <div key={`existing-${i}`} className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-navy-100 shadow-sm group">
+                        <img src={img.url} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExistingImages(prev => prev.filter((_, idx) => idx !== i));
+                            if (img.fileId) setRemovedFileIds(prev => [...prev, img.fileId]);
+                          }}
+                          className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold leading-none opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                          title="Remove image"
+                        >×</button>
+                        <div className="absolute inset-0 bg-black/10 flex items-end justify-center pb-0.5 pointer-events-none">
                           <span className="text-white text-[9px] font-bold">{i + 1}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {/* New file previews */}
+                    {imagePreviews.map((src, i) => (
+                      <div key={`new-${i}`} className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-champagne-300 shadow-sm group">
+                        <img src={src} alt={`New ${i + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImages(prev => prev.filter((_, idx) => idx !== i));
+                            setImagePreviews(prev => prev.filter((_, idx) => idx !== i));
+                          }}
+                          className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold leading-none opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                          title="Remove image"
+                        >×</button>
+                        <div className="absolute inset-0 bg-black/10 flex items-end justify-center pb-0.5 pointer-events-none">
+                          <span className="text-champagne-200 text-[9px] font-bold">NEW</span>
                         </div>
                       </div>
                     ))}
@@ -722,7 +758,7 @@ function ProductsView() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs sm:text-sm min-w-[600px]">
             <thead className="bg-gray-50">
-              <tr>{['Product','Code','Sales Price','Stock','Collections','Place','Actions'].map(h=>(
+              <tr>{['Product','Code','Purchase Price','Sales Price','Stock','Collections','Place','Actions'].map(h=>(
                 <th key={h} className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-gray-500 font-semibold text-xs uppercase">{h}</th>
               ))}</tr>
             </thead>
@@ -740,7 +776,8 @@ function ProductsView() {
                     </div>
                   </td>
                   <td className="px-3 sm:px-4 py-2.5 font-mono text-xs text-gray-500">{p.itemCode}</td>
-                  <td className="px-3 sm:px-4 py-2.5 font-semibold text-navy-700">₹{p.salesPrice}</td>
+                  <td className="px-3 sm:px-4 py-2.5 text-gray-500">{p.purchasePrice ? `₹${p.purchasePrice}` : '—'}</td>
+                  <td className="px-3 sm:px-4 py-2.5  text-navy-700">₹{p.salesPrice}</td>
                   <td className="px-3 sm:px-4 py-2.5 text-gray-600">{p.stock}</td>
                   <td className="px-3 sm:px-4 py-2.5 text-gray-500 text-xs">
                     {p.collections?.length ? p.collections.map(c => c.name).join(', ') : '—'}

@@ -70,10 +70,6 @@ function ProductCarousel({ collections }) {
 
   const product = slides[index];
   const salesPrice = product.salesPrice ?? product.price ?? 0;
-  const purchasePrice = product.purchasePrice;
-  const discount = purchasePrice
-    ? Math.round((1 - salesPrice / purchasePrice) * 100)
-    : 0;
 
   return (
     <section className="py-10 sm:py-14 bg-navy-900 overflow-hidden">
@@ -118,11 +114,6 @@ function ProductCarousel({ collections }) {
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-navy-900/90 via-navy-900/10 to-transparent" />
 
-            {discount > 0 && (
-              <div className="absolute top-3 left-3 sm:top-5 sm:left-5 bg-red-500 text-white text-xs sm:text-sm font-bold px-2.5 py-1 rounded-full shadow">
-                {discount}% OFF
-              </div>
-            )}
             {product.collection?.name && (
               <div className="absolute top-3 right-14 sm:top-5 sm:right-16 bg-champagne-500/90 text-white text-xs font-bold px-2.5 py-1 rounded-full">
                 {product.collection.name}
@@ -145,11 +136,6 @@ function ProductCarousel({ collections }) {
               <span className="font-display font-black text-champagne-400 text-xl sm:text-2xl">
                 ₹{formatCurrency(salesPrice)}
               </span>
-              {purchasePrice && (
-                <span className="text-white/50 line-through text-sm">
-                  ₹{formatCurrency(purchasePrice)}
-                </span>
-              )}
               <span className="text-white/60 text-xs">/PAC</span>
               <span className="ml-auto inline-flex items-center gap-1.5 bg-champagne-500 hover:bg-champagne-600 text-white text-xs sm:text-sm font-bold px-3 sm:px-4 py-2 rounded-xl transition-all">
                 View Details
