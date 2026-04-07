@@ -5,6 +5,7 @@ import { CartProvider } from "@/context/CartContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Navbar from "@/components/Navbar";
 import CartSidebar from "@/components/CartSidebar";
+import CartBar from "@/components/CartBar";
 import Footer from "@/components/Footer";
 
 const HomePage = lazy(() => import("@/pages/HomePage"));
@@ -27,6 +28,7 @@ function MainLayout({ children }) {
       <Navbar />
       <CartSidebar />
       {children}
+      <CartBar />
       <Footer />
     </>
   );

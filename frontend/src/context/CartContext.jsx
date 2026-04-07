@@ -41,7 +41,6 @@ export function CartProvider({ children }) {
         },
       ];
     });
-    setIsCartOpen(true);
   };
 
   const updateQuantity = (productId, quantity) => {

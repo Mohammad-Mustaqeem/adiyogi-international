@@ -17,7 +17,7 @@ const productSchema = new mongoose.Schema({
   collections:      [{ type: mongoose.Schema.Types.ObjectId, ref: 'Collection' }],
   place:            { type: String, default: '' },
   isActive:         { type: Boolean, default: true },
-  gstRate:          { type: Number, default: 5 }, // kept for reference only, not calculated
+  gstRate:          { type: Number, default: 5, enum: [0, 5, 12, 18, 28] },
 }, { timestamps: true });
 
 productSchema.index({ name: 'text', itemCode: 'text', description: 'text' });

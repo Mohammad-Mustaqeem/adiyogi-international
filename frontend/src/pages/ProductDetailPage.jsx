@@ -3,18 +3,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import { formatCurrency } from "@/lib/formatters";
 import api from "@/lib/api-client";
-import toast from "react-hot-toast";
 
 export default function ProductDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToCart } = useCart();
+  const { cart, addToCart, updateQuantity } = useCart();
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selImg, setSelImg] = useState(0);
-  const [qty, setQty] = useState(1);
-  const [adding, setAdding] = useState(false);
   const [imgZoom, setImgZoom] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect -- data fetching */
@@ -39,20 +36,8 @@ export default function ProductDetailPage() {
   }, [id, navigate]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleAdd = () => {
-    setAdding(true);
-    addToCart(product, qty);
-    toast.success(`${product.name} × ${qty} added to cart!`, {
-      style: {
-        background: "#1B3A6B",
-        color: "white",
-        fontFamily: "DM Sans",
-        fontSize: "14px",
-      },
-      iconTheme: { primary: "#C9A84C", secondary: "#fff" },
-    });
-    setTimeout(() => setAdding(false), 800);
-  };
+  const cartItem = product ? cart.find((i) => i.productId === product._id) : null;
+  const inCart = !!cartItem;
 
   if (loading)
     return (
@@ -318,66 +303,49 @@ export default function ProductDetailPage() {
                   : "Out of Stock"}
             </div>
 
-            {/* Quantity + Add to Cart */}
+            {/* Add to Cart — Vyapar 2-state */}
             {product.stock > 0 && (
               <div className="space-y-3">
-                <div className="flex items-center gap-4">
-                  <span className="text-sm font-semibold text-gray-700">
-                    Quantity (PAC):
-                  </span>
-                  <div className="flex items-center border-2 border-navy-200 rounded-xl overflow-hidden">
-                    <button
-                      onClick={() => setQty((q) => Math.max(1, q - 1))}
-                      className="px-4 py-2 text-navy-700 hover:bg-navy-50 font-bold text-lg transition-colors"
-                    >
-                      −
-                    </button>
-                    <span className="px-5 py-2 text-base font-bold text-navy-800 min-w-[3rem] text-center border-x-2 border-navy-200">
-                      {qty}
-                    </span>
-                    <button
-                      onClick={() => setQty((q) => q + 1)}
-                      className="px-4 py-2 text-navy-700 hover:bg-navy-50 font-bold text-lg transition-colors"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <span className="text-sm text-gray-400">
-                    = {qty * conversion} NOS
-                  </span>
-                </div>
-
-                <div className="bg-navy-50 rounded-xl px-4 py-2.5 text-sm">
-                  <span className="text-gray-600">Subtotal: </span>
-                  <span className="font-bold text-navy-700 text-base">
-                    ₹{formatCurrency(salesPrice * qty)}
-                  </span>
-                </div>
-
-                <button
-                  onClick={handleAdd}
-                  disabled={adding}
-                  className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-300 flex items-center justify-center gap-3 ${
-                    adding
-                      ? "bg-green-500 text-white scale-98"
-                      : "bg-navy-700 hover:bg-navy-800 text-white hover:shadow-xl hover:-translate-y-0.5"
-                  }`}
-                >
-                  {adding ? (
-                    <>
-                      <CheckIcon className="w-5 h-5" /> Added to Cart!
-                    </>
-                  ) : (
-                    <>
-                      <CartIcon className="w-5 h-5" /> Add to Cart
-                    </>
-                  )}
-                </button>
+                {inCart ? (
+                  <>
+                    <div className="flex items-center justify-between bg-white border border-blue-500 rounded-2xl px-5 py-3">
+                      <button
+                        onClick={() => updateQuantity(product._id, cartItem.quantity - 1)}
+                        className="w-10 h-10 flex items-center justify-center text-blue-600 hover:bg-blue-50 font-bold text-2xl rounded-full transition-colors"
+                      >
+                        −
+                      </button>
+                      <div className="text-center">
+                        <span className="text-xl font-bold text-blue-700">{cartItem.quantity}</span>
+                        <p className="text-xs text-gray-400">{cartItem.quantity * conversion} NOS</p>
+                      </div>
+                      <button
+                        onClick={() => updateQuantity(product._id, cartItem.quantity + 1)}
+                        className="w-10 h-10 flex items-center justify-center text-blue-600 hover:bg-blue-50 font-bold text-2xl rounded-full transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="bg-navy-50 rounded-xl px-4 py-2.5 text-sm">
+                      <span className="text-gray-600">Subtotal: </span>
+                      <span className="font-bold text-navy-700 text-base">
+                        ₹{formatCurrency(salesPrice * cartItem.quantity)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => addToCart(product, 1)}
+                    className="w-full py-4 rounded-2xl font-bold text-base border-2 border-blue-500 text-blue-600 hover:bg-blue-50 transition-all duration-200 flex items-center justify-center gap-3"
+                  >
+                    <CartIcon className="w-5 h-5" /> + Add to Cart
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
-                    handleAdd();
-                    setTimeout(() => navigate("/checkout"), 500);
+                    if (!inCart) addToCart(product, 1);
+                    navigate("/checkout");
                   }}
                   className="w-full py-4 rounded-2xl font-bold text-base border-2 border-champagne-500 text-champagne-600 hover:bg-champagne-500 hover:text-white transition-all duration-300 flex items-center justify-center gap-3"
                 >
@@ -405,21 +373,6 @@ export default function ProductDetailPage() {
   );
 }
 
-const CheckIcon = ({ className }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2.5}
-      d="M5 13l4 4L19 7"
-    />
-  </svg>
-);
 const CartIcon = ({ className }) => (
   <svg
     className={className}

@@ -107,7 +107,7 @@ async function generateInvoicePDF(order) {
 
       // ── ITEMS TABLE ──
       const tTop = addrTop + 115;
-      const cols = { num: 40, name: 65, code: 230, hsn: 300, qty: 360, unit: 395, price: 430, amount: 480 };
+      const cols = { num: 40, name: 65, code: 220, hsn: 290, qty: 355, unit: 390, price: 430, amount: 480 };
 
       // Table header
       doc.rect(40, tTop, W, 24).fill(NAVY);
@@ -131,9 +131,9 @@ async function generateInvoicePDF(order) {
 
         doc.fillColor(DARK).fontSize(8).font('Helvetica');
         doc.text(String(idx + 1),            cols.num,    rowY + 9);
-        doc.text(item.name,                  cols.name,   rowY + 9, { width: 160, lineBreak: false });
+        doc.text(item.name,                  cols.name,   rowY + 9, { width: 150, lineBreak: false });
         doc.text(item.itemCode || '',        cols.code,   rowY + 9, { width: 65,  lineBreak: false });
-        doc.text(item.hsnCode  || '',        cols.hsn,    rowY + 9, { width: 55,  lineBreak: false });
+        doc.text(item.hsnCode  || '',        cols.hsn,    rowY + 9, { width: 60,  lineBreak: false });
         doc.text(String(item.quantity),      cols.qty,    rowY + 9);
         doc.text(item.unit || 'Nos',         cols.unit,   rowY + 9);
         doc.text(`Rs ${item.price}`,         cols.price,  rowY + 9, { width: 45, align: 'right' });
@@ -168,15 +168,9 @@ async function generateInvoicePDF(order) {
 
       // Amounts (right)
       doc.rect(345, sumTop, 210, 80).fill(LIGHT).stroke('#D1D5DB');
-      const amtLines = [
-        ['Sub Total', `Rs ${order.subtotal.toFixed(2)}`],
-      ];
-      let amtY = sumTop + 12;
-      amtLines.forEach(([label, val]) => {
-        doc.fillColor(GRAY).fontSize(9).font('Helvetica').text(label, 357, amtY);
-        doc.fillColor(DARK).fontSize(9).font('Helvetica').text(val, 345, amtY, { width: 198, align: 'right' });
-        amtY += 16;
-      });
+      doc.fillColor(GRAY).fontSize(9).font('Helvetica').text('Sub Total', 357, sumTop + 12);
+      doc.fillColor(DARK).fontSize(9).font('Helvetica').text(`Rs ${order.subtotal.toFixed(2)}`, 345, sumTop + 12, { width: 198, align: 'right' });
+      doc.fillColor(GRAY).fontSize(8).font('Helvetica').text('(GST Included)', 357, sumTop + 30);
       // Total line
       doc.rect(345, sumTop + 56, 210, 24).fill(NAVY);
       doc.fillColor('white').fontSize(10).font('Helvetica-Bold')

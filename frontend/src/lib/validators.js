@@ -43,6 +43,7 @@ export const productSchema = z.object({
   baseUnit: z.string().default("PAC"),
   secondaryUnit: z.string().default("NOS"),
   unitConversionRate: z.coerce.number().positive().default(10),
+  gstRate: z.coerce.number().default(5),
   collections: z.array(z.string()).default([]),
   place: z.string().optional(),
   description: z.string().optional(),
