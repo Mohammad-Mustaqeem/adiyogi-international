@@ -17,7 +17,7 @@ const orderSchema = new mongoose.Schema({
   orderId: { type: String, unique: true },
   customer: {
     name:     { type: String, required: true },
-    phone:    { type: String, required: true },
+    phone:    { type: String },
     whatsapp: { type: String },
     email:    { type: String },
     address:  { type: String, required: true },

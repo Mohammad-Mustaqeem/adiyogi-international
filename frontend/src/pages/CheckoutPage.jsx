@@ -104,7 +104,7 @@ export default function CheckoutPage() {
           {/* Left: Form */}
           <div className="lg:col-span-3 space-y-5 sm:space-y-6">
             {/* Personal Info */}
-            <FormSection title="Personal Information" step="1">
+            <FormSection title="Dealer Name" step="1">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="sm:col-span-2">
                   <Label>Full Name *</Label>
@@ -118,12 +118,12 @@ export default function CheckoutPage() {
                   <FieldError msg={errors.name} />
                 </div>
                 <div>
-                  <Label>Mobile Number *</Label>
+                  <Label>Dealer Code (optional)</Label>
                   <input
                     name="phone"
                     value={form.phone}
                     onChange={handleChange}
-                    className={`input ${errors.phone ? "border-red-400" : ""}`}
+                    className="input"
                     placeholder="9876543210"
                     maxLength={10}
                   />

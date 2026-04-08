@@ -9,7 +9,7 @@ const pincode = z.string().regex(/^\d{6}$/, "Enter a valid 6-digit pincode");
 // ── Checkout form ───────────────────────────────────────────────
 export const checkoutSchema = z.object({
   name: z.string().trim().min(1, "Please enter your full name"),
-  phone: indianPhone,
+  phone: z.union([z.literal(""), indianPhone]).optional(),
   whatsapp: indianPhone.describe("WhatsApp number is required for invoice delivery"),
   email: z.union([z.literal(""), z.string().email("Enter a valid email")]),
   address: z.string().trim().min(1, "Please enter your delivery address"),
@@ -43,7 +43,6 @@ export const productSchema = z.object({
   baseUnit: z.string().default("PAC"),
   secondaryUnit: z.string().default("NOS"),
   unitConversionRate: z.coerce.number().positive().default(10),
-  gstRate: z.coerce.number().default(5),
   collections: z.array(z.string()).default([]),
   place: z.string().optional(),
   description: z.string().optional(),

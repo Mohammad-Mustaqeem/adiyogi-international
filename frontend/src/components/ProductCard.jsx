@@ -57,10 +57,10 @@ export default function ProductCard({ product }) {
 
         {/* Name + code */}
         <div className="px-3 sm:px-4 pt-3">
-          <p className="text-[9px] sm:text-[10px] font-mono text-gray-400 mb-1">
+          <p className="text-[9px] sm:text-[10px] font-mono font-bold text-gray-400 mb-1">
             ITEM CODE : {product.itemCode}
           </p>
-          <h3 className="font-display font-semibold text-gray-800 text-xs sm:text-sm leading-snug line-clamp-2">
+          <h3 className="font-display font-bold font-mono text-gray-800 text-xs sm:text-sm leading-snug line-clamp-2">
             {product.name}
           </h3>
         </div>
