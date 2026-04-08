@@ -9,7 +9,7 @@ const __dirname  = dirname(__filename);
 
 // fileName convention used externally (e.g. for WhatsApp attachment name)
 export function invoiceFileName(order) {
-  return `Invoice-${order.orderId}.pdf`;
+  return `Estimate-${order.orderId}.pdf`;
 }
 
 function numberToWords(num) {
@@ -59,7 +59,7 @@ async function generateInvoicePDF(order) {
       doc.rect(0, 0, 595, 110).fill(NAVY);
 
       // Try to add logo (if exists)
-      const logoPath = path.join(__dirname, '..', '..', '..', 'frontend', 'public', 'logo.png');
+      const logoPath = path.join(__dirname, '..', 'assets', 'logo.png');
       if (fs.existsSync(logoPath)) {
         try {
           doc.image(logoPath, 40, 15, { height: 75 });
@@ -78,7 +78,7 @@ async function generateInvoicePDF(order) {
       // ── INVOICE META ──
       doc.rect(0, 110, 595, 38).fill(GOLD);
       doc.fillColor('white').fontSize(13).font('Helvetica-Bold')
-        .text(`INVOICE: ${order.orderId}`, 40, 122);
+        .text(`ESTIMATE: ${order.orderId}`, 40, 122);
       doc.fontSize(11).font('Helvetica')
         .text(`Date: ${date}   |   Payment: ${order.paymentMode}`, 0, 124, { align: 'right', width: 555 });
 
