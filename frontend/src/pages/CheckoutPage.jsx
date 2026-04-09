@@ -118,7 +118,7 @@ export default function CheckoutPage() {
                   <FieldError msg={errors.name} />
                 </div>
                 <div>
-                  <Label>Dealer code (optional)</Label>
+                  <Label>Dealer Code (optional)</Label>
                   <input
                     name="phone"
                     value={form.phone}
