@@ -36,3 +36,19 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   const order = await adminService.updateOrderStatus(req.params.id, status);
   res.json(order);
 });
+
+export const getProfile = asyncHandler(async (req, res) => {
+  const profile = await adminService.getProfile(req.admin.id);
+  res.json(profile);
+});
+
+export const updateProfile = asyncHandler(async (req, res) => {
+  const profile = await adminService.updateProfile(req.admin.id, req.body);
+  res.json(profile);
+});
+
+export const changePassword = asyncHandler(async (req, res) => {
+  await adminService.changePassword(req.admin.id, req.body);
+  res.json({ message: 'Password updated successfully' });
+});
+

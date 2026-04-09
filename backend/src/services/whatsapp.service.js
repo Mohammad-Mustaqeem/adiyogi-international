@@ -189,9 +189,20 @@ const toJID = (phone) => {
 };
 
 export async function sendWhatsAppMessage(phone, message) {
-  if (!isReady || !sock) return false;
-  try { await sock.sendMessage(toJID(phone), { text: message }); return true; }
-  catch (err) { console.error('WA send error:', err.message); return false; }
+  if (!isReady || !sock) {
+    console.warn(`⚠️  WA send skipped — isReady:${isReady} sock:${!!sock}`);
+    return false;
+  }
+  const jid = toJID(phone);
+  console.log(`📤 WA sending to JID: ${jid}`);
+  try {
+    await sock.sendMessage(jid, { text: message });
+    console.log(`✅ WA sent OK to: ${jid}`);
+    return true;
+  } catch (err) {
+    console.error(`❌ WA send error to ${jid}:`, err.message);
+    return false;
+  }
 }
 
 export async function sendWhatsAppDocumentBuffer(phone, buffer, filename, caption) {

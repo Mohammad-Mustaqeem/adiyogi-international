@@ -6,6 +6,8 @@ import {
   adminSetupSchema,
   productSchema,
   collectionSchema,
+  updateProfileSchema,
+  changePasswordSchema,
   validateFields,
 } from '@/lib/validators'
 import { STORAGE_KEYS } from '@/constants'
@@ -28,6 +30,7 @@ export default function AdminPage() {
     { id: 'collections', label: 'Collections', icon: '🗂️' },
     { id: 'orders', label: 'Orders', icon: '📋' },
     { id: 'whatsapp', label: 'WhatsApp Setup', icon: '📱' },
+    { id: 'settings', label: 'Account Settings', icon: '⚙️' },
   ]
 
   return (
@@ -112,6 +115,7 @@ export default function AdminPage() {
           {view === 'collections' && <CollectionsView />}
           {view === 'orders' && <OrdersView />}
           {view === 'whatsapp' && <WhatsAppSetupView />}
+          {view === 'settings' && <SettingsView />}
         </div>
       </main>
     </div>
@@ -120,26 +124,17 @@ export default function AdminPage() {
 
 /* ─── LOGIN ─── */
 function AdminLogin({ onLogin }) {
+  const [showSetup, setShowSetup] = useState(false)
   const [form, setForm] = useState({ username: '', password: '' })
   const [errors, setErrors] = useState({})
-  const [showSetup, setShowSetup] = useState(false)
-  const [setupForm, setSetupForm] = useState({
-    username: '',
-    password: '',
-    name: 'Admin',
-    whatsappNumber: '',
-  })
+  const [setupForm, setSetupForm] = useState({ username: '', password: '', name: 'Admin', whatsappNumber: '' })
   const [setupErrors, setSetupErrors] = useState({})
   const [loading, setLoading] = useState(false)
 
   const handleLogin = async (e) => {
     e.preventDefault()
-    const fieldErrors = validateFields(loginSchema, form)
-    if (Object.keys(fieldErrors).length > 0) {
-      setErrors(fieldErrors)
-      toast.error(Object.values(fieldErrors)[0])
-      return
-    }
+    const errs = validateFields(loginSchema, form)
+    if (Object.keys(errs).length > 0) { setErrors(errs); toast.error(Object.values(errs)[0]); return }
     setErrors({})
     setLoading(true)
     try {
@@ -148,19 +143,13 @@ function AdminLogin({ onLogin }) {
       onLogin(data.token)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Invalid credentials')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   const handleSetup = async (e) => {
     e.preventDefault()
-    const fieldErrors = validateFields(adminSetupSchema, setupForm)
-    if (Object.keys(fieldErrors).length > 0) {
-      setSetupErrors(fieldErrors)
-      toast.error(Object.values(fieldErrors)[0])
-      return
-    }
+    const errs = validateFields(adminSetupSchema, setupForm)
+    if (Object.keys(errs).length > 0) { setSetupErrors(errs); toast.error(Object.values(errs)[0]); return }
     setSetupErrors({})
     setLoading(true)
     try {
@@ -169,9 +158,7 @@ function AdminLogin({ onLogin }) {
       setShowSetup(false)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Setup failed')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   return (
@@ -179,9 +166,7 @@ function AdminLogin({ onLogin }) {
       <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden">
         <div className="bg-navy-700 p-6 sm:p-8 text-center">
           <img src="/logo.png" alt="Adiyogi" className="h-12 sm:h-16 mx-auto mb-3" />
-          <h1 className="font-display font-bold text-white text-xl sm:text-2xl">
-            Admin Panel
-          </h1>
+          <h1 className="font-display font-bold text-white text-xl sm:text-2xl">Admin Panel</h1>
           <p className="text-navy-200 text-xs sm:text-sm">Adiyogi International</p>
         </div>
         <div className="p-5 sm:p-8">
@@ -191,10 +176,7 @@ function AdminLogin({ onLogin }) {
                 <Label>Username</Label>
                 <input
                   value={form.username}
-                  onChange={(e) => {
-                    setForm((p) => ({ ...p, username: e.target.value }))
-                    if (errors.username) setErrors((p) => ({ ...p, username: undefined }))
-                  }}
+                  onChange={(e) => { setForm((p) => ({ ...p, username: e.target.value })); if (errors.username) setErrors((p) => ({ ...p, username: undefined })) }}
                   className={`input ${errors.username ? 'border-red-400' : ''}`}
                   placeholder="admin"
                 />
@@ -205,10 +187,7 @@ function AdminLogin({ onLogin }) {
                 <input
                   type="password"
                   value={form.password}
-                  onChange={(e) => {
-                    setForm((p) => ({ ...p, password: e.target.value }))
-                    if (errors.password) setErrors((p) => ({ ...p, password: undefined }))
-                  }}
+                  onChange={(e) => { setForm((p) => ({ ...p, password: e.target.value })); if (errors.password) setErrors((p) => ({ ...p, password: undefined })) }}
                   className={`input ${errors.password ? 'border-red-400' : ''}`}
                   placeholder="••••••••"
                 />
@@ -219,40 +198,26 @@ function AdminLogin({ onLogin }) {
               </button>
               <p className="text-center text-xs text-gray-400">
                 First time?{' '}
-                <button
-                  type="button"
-                  onClick={() => setShowSetup(true)}
-                  className="text-navy-600 font-semibold hover:underline"
-                >
+                <button type="button" onClick={() => setShowSetup(true)} className="text-navy-600 font-semibold hover:underline">
                   Setup Admin
                 </button>
               </p>
             </form>
           ) : (
             <form onSubmit={handleSetup} className="space-y-4" noValidate>
-              <h2 className="font-display font-bold text-navy-800 text-lg sm:text-xl">
-                Create Admin Account
-              </h2>
+              <h2 className="font-display font-bold text-navy-800 text-lg sm:text-xl">Create Admin Account</h2>
               {[
                 { key: 'name', label: 'Display Name', ph: 'Admin' },
                 { key: 'username', label: 'Username', ph: 'admin' },
                 { key: 'password', label: 'Password', ph: '••••••••', type: 'password' },
-                {
-                  key: 'whatsappNumber',
-                  label: 'WhatsApp (country code + number)',
-                  ph: '919876543210',
-                },
+                { key: 'whatsappNumber', label: 'WhatsApp Number', ph: '9876543210' },
               ].map((f) => (
                 <div key={f.key}>
                   <Label>{f.label}</Label>
                   <input
                     type={f.type || 'text'}
                     value={setupForm[f.key]}
-                    onChange={(e) => {
-                      setSetupForm((p) => ({ ...p, [f.key]: e.target.value }))
-                      if (setupErrors[f.key])
-                        setSetupErrors((p) => ({ ...p, [f.key]: undefined }))
-                    }}
+                    onChange={(e) => { setSetupForm((p) => ({ ...p, [f.key]: e.target.value })); if (setupErrors[f.key]) setSetupErrors((p) => ({ ...p, [f.key]: undefined })) }}
                     className={`input ${setupErrors[f.key] ? 'border-red-400' : ''}`}
                     placeholder={f.ph}
                   />
@@ -262,11 +227,7 @@ function AdminLogin({ onLogin }) {
               <button type="submit" disabled={loading} className="w-full btn-primary">
                 {loading ? 'Creating...' : 'Create Admin'}
               </button>
-              <button
-                type="button"
-                onClick={() => setShowSetup(false)}
-                className="w-full text-center text-sm text-gray-500 hover:text-navy-600"
-              >
+              <button type="button" onClick={() => setShowSetup(false)} className="w-full text-center text-sm text-gray-500 hover:text-navy-600">
                 Back to Login
               </button>
             </form>
@@ -2126,6 +2087,7 @@ function WhatsAppSetupView() {
   const [qrImage, setQrImage] = useState(null)
   const [polling, setPolling] = useState(true)
   const [initializing, setInitializing] = useState(false)
+  const [testing, setTesting] = useState(false)
 
   const fetchStatus = async () => {
     try {
@@ -2173,6 +2135,18 @@ function WhatsAppSetupView() {
       setPolling(true)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to reset session')
+    }
+  }
+
+  const handleTest = async () => {
+    setTesting(true)
+    try {
+      const { data } = await api.post('/whatsapp/test')
+      toast.success(data.message)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Test failed')
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -2249,15 +2223,25 @@ function WhatsAppSetupView() {
             </div>
           )}
           {status?.isReady && (
-            <div className="mt-1 flex items-center gap-3">
+            <div className="mt-2 space-y-2">
               <p className="text-green-600 text-sm">
                 Messages and PDFs are sent automatically when a customer places an order.
               </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleTest}
+                  disabled={testing}
+                  className="px-4 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-xs hover:bg-green-700 disabled:opacity-50 transition"
+                >
+                  {testing ? 'Sending...' : '📨 Send Test Message'}
+                </button>
+                <span className="text-xs text-gray-400">Sends a message to your registered WhatsApp number to verify delivery.</span>
+              </div>
               <button
                 onClick={handleReset}
-                className="text-xs text-gray-400 hover:text-red-500 underline whitespace-nowrap"
+                className="text-xs text-gray-400 hover:text-red-500 underline"
               >
-                Reset
+                Disconnect / Reset Session
               </button>
             </div>
           )}
@@ -2412,3 +2396,143 @@ const EmptyState = ({ icon, msg }) => (
     <p className="text-sm">{msg}</p>
   </div>
 )
+
+/* ─── SETTINGS ─── */
+function SettingsView() {
+  const [profile, setProfile] = useState({ name: '', username: '', whatsappNumber: '' })
+  const [profileErrors, setProfileErrors] = useState({})
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileFetching, setProfileFetching] = useState(true)
+
+  const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [pwErrors, setPwErrors] = useState({})
+  const [pwLoading, setPwLoading] = useState(false)
+
+  useEffect(() => {
+    api.get('/admin/profile')
+      .then((r) => setProfile(r.data))
+      .catch(() => toast.error('Failed to load profile'))
+      .finally(() => setProfileFetching(false))
+  }, [])
+
+  const handleProfileSave = async (e) => {
+    e.preventDefault()
+    const errors = validateFields(updateProfileSchema, profile)
+    if (Object.keys(errors).length > 0) {
+      setProfileErrors(errors)
+      toast.error(Object.values(errors)[0])
+      return
+    }
+    setProfileErrors({})
+    setProfileLoading(true)
+    try {
+      const { data } = await api.patch('/admin/profile', profile)
+      setProfile(data)
+      toast.success('Profile updated')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update profile')
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault()
+    const errors = validateFields(changePasswordSchema, pwForm)
+    if (Object.keys(errors).length > 0) {
+      setPwErrors(errors)
+      toast.error(Object.values(errors)[0])
+      return
+    }
+    setPwErrors({})
+    setPwLoading(true)
+    try {
+      await api.patch('/admin/password', {
+        currentPassword: pwForm.currentPassword,
+        newPassword: pwForm.newPassword,
+      })
+      toast.success('Password changed successfully')
+      setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to change password')
+    } finally {
+      setPwLoading(false)
+    }
+  }
+
+  if (profileFetching) return <LoadingSpinner />
+
+  return (
+    <div className="max-w-xl space-y-8">
+      {/* Profile */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+        <h2 className="font-display font-bold text-navy-800 text-lg mb-5">Profile</h2>
+        <form onSubmit={handleProfileSave} className="space-y-4" noValidate>
+          {[
+            { key: 'name', label: 'Display Name', ph: 'Admin', type: 'text' },
+            { key: 'username', label: 'Username', ph: 'admin', type: 'text' },
+            { key: 'whatsappNumber', label: 'WhatsApp Number', ph: '919876543210', type: 'text' },
+          ].map(({ key, label, ph, type }) => (
+            <div key={key}>
+              <Label>{label}</Label>
+              <input
+                type={type}
+                value={profile[key]}
+                onChange={(e) => {
+                  setProfile((p) => ({ ...p, [key]: e.target.value }))
+                  if (profileErrors[key]) setProfileErrors((p) => ({ ...p, [key]: undefined }))
+                }}
+                className={`input ${profileErrors[key] ? 'border-red-400' : ''}`}
+                placeholder={ph}
+              />
+              <FieldError msg={profileErrors[key]} />
+            </div>
+          ))}
+          <button
+            type="submit"
+            disabled={profileLoading}
+            className="btn-primary w-full sm:w-auto px-8"
+          >
+            {profileLoading ? 'Saving...' : 'Save Changes'}
+          </button>
+        </form>
+      </div>
+
+      {/* Change Password */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+        <h2 className="font-display font-bold text-navy-800 text-lg mb-1">Change Password</h2>
+        <p className="text-sm text-gray-500 mb-5">Choose a strong password of at least 6 characters.</p>
+        <form onSubmit={handlePasswordChange} className="space-y-4" noValidate>
+          {[
+            { key: 'currentPassword', label: 'Current Password', ph: '••••••••' },
+            { key: 'newPassword', label: 'New Password', ph: '••••••••' },
+            { key: 'confirmPassword', label: 'Confirm New Password', ph: '••••••••' },
+          ].map(({ key, label, ph }) => (
+            <div key={key}>
+              <Label>{label}</Label>
+              <input
+                type="password"
+                value={pwForm[key]}
+                onChange={(e) => {
+                  setPwForm((p) => ({ ...p, [key]: e.target.value }))
+                  if (pwErrors[key]) setPwErrors((p) => ({ ...p, [key]: undefined }))
+                }}
+                className={`input ${pwErrors[key] ? 'border-red-400' : ''}`}
+                placeholder={ph}
+                autoComplete={key === 'currentPassword' ? 'current-password' : 'new-password'}
+              />
+              <FieldError msg={pwErrors[key]} />
+            </div>
+          ))}
+          <button
+            type="submit"
+            disabled={pwLoading}
+            className="btn-primary w-full sm:w-auto px-8"
+          >
+            {pwLoading ? 'Updating...' : 'Update Password'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}

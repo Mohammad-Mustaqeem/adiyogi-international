@@ -8,7 +8,8 @@ import adminRoutes from './routes/admin.routes.js';
 import productRoutes from './routes/products.routes.js';
 import collectionRoutes from './routes/collections.routes.js';
 import orderRoutes from './routes/orders.routes.js';
-import { getWAStatus, getQRBase64, initWhatsApp, resetSession } from './services/whatsapp.service.js';
+import { getWAStatus, getQRBase64, initWhatsApp, resetSession, sendWhatsAppMessage } from './services/whatsapp.service.js';
+import Admin from './models/admin.model.js';
 import auth from './middleware/auth.middleware.js';
 import errorHandler from './middleware/error.middleware.js';
 
@@ -70,6 +71,29 @@ app.post('/api/whatsapp/init', auth, async (req, res) => {
 app.post('/api/whatsapp/reset', auth, (req, res) => {
   resetSession();
   res.json({ message: 'Session cleared — initialize WhatsApp to get a new QR code' });
+});
+
+// Send a test message to the admin's own registered WhatsApp number (auth-protected)
+app.post('/api/whatsapp/test', auth, async (req, res) => {
+  const status = getWAStatus();
+  if (!status.isReady) {
+    return res.status(400).json({ message: 'WhatsApp is not connected. Scan the QR code first.' });
+  }
+  const admin = await Admin.findById(req.admin.id).select('whatsappNumber name');
+  if (!admin) return res.status(404).json({ message: 'Admin not found' });
+
+  const message =
+    `✅ *Adiyogi Admin — WhatsApp Test*\n\n` +
+    `Hey ${admin.name}! This is a test message to confirm WhatsApp notifications are working correctly.\n\n` +
+    `Your registered number: *${admin.whatsappNumber}*`;
+
+  console.log(`📤 Sending WhatsApp test message to: ${admin.whatsappNumber}`);
+  const sent = await sendWhatsAppMessage(admin.whatsappNumber, message);
+  if (sent) {
+    res.json({ message: `Test message sent to ${admin.whatsappNumber}` });
+  } else {
+    res.status(500).json({ message: 'Failed to send — WhatsApp may have disconnected. Try resetting the session.' });
+  }
 });
 
 // Health check

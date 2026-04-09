@@ -18,3 +18,11 @@ export function findOneAdmin(filter = {}, select) {
   if (select) q = q.select(select);
   return q;
 }
+
+export function findById(id) {
+  return Admin.findById(id);
+}
+
+export function updateAdmin(id, data) {
+  return Admin.findByIdAndUpdate(id, data, { new: true });
+}

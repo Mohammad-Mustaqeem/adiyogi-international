@@ -63,3 +63,30 @@ export async function getOrders({ page = 1, limit = 20, status } = {}) {
 export async function updateOrderStatus(id, status) {
   return orderRepo.updateStatus(id, status);
 }
+
+export async function getProfile(adminId) {
+  const admin = await adminRepo.findById(adminId);
+  if (!admin) throw new ApiError(404, 'Admin not found');
+  return { name: admin.name, username: admin.username, whatsappNumber: admin.whatsappNumber };
+}
+
+export async function updateProfile(adminId, { name, username, whatsappNumber }) {
+  // Check username uniqueness if changing
+  const existing = await adminRepo.findByUsername(username);
+  if (existing && String(existing._id) !== String(adminId)) {
+    throw new ApiError(409, 'Username is already taken');
+  }
+  const admin = await adminRepo.updateAdmin(adminId, { name, username, whatsappNumber });
+  if (!admin) throw new ApiError(404, 'Admin not found');
+  return { name: admin.name, username: admin.username, whatsappNumber: admin.whatsappNumber };
+}
+
+export async function changePassword(adminId, { currentPassword, newPassword }) {
+  const admin = await adminRepo.findById(adminId);
+  if (!admin) throw new ApiError(404, 'Admin not found');
+  const valid = await admin.comparePassword(currentPassword);
+  if (!valid) throw new ApiError(401, 'Current password is incorrect');
+  admin.password = newPassword;
+  await admin.save(); // triggers bcrypt pre-save hook
+}
+

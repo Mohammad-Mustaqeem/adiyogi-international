@@ -74,12 +74,6 @@ export default function Footer() {
             © {new Date().getFullYear()} Adiyogi International. All rights
             reserved.
           </p>
-          <a
-            href="/admin"
-            className="text-navy-500 hover:text-navy-300 transition-colors"
-          >
-            Admin Panel
-          </a>
         </div>
       </div>
     </footer>
