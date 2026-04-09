@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const createOrderSchema = z.object({
   customer: z.object({
     name: z.string().min(1, 'Customer name is required'),
-    phone: z.union([z.string(), z.literal('')]).optional().default(''),
+    phone: z.string().optional().default(''),
     whatsapp: z.string().optional(),
     email: z.string().email().optional().or(z.literal('')),
     address: z.string().min(1, 'Address is required'),

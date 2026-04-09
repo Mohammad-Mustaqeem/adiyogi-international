@@ -118,14 +118,14 @@ export default function CheckoutPage() {
                   <FieldError msg={errors.name} />
                 </div>
                 <div>
-                  <Label>Dealer Code (optional)</Label>
+                  <Label>Dealer code (optional)</Label>
                   <input
                     name="phone"
                     value={form.phone}
                     onChange={handleChange}
                     className="input"
-                    placeholder="9876543210"
-                    maxLength={10}
+                    placeholder="AB12CD"
+                    maxLength={8}
                   />
                   <FieldError msg={errors.phone} />
                 </div>
