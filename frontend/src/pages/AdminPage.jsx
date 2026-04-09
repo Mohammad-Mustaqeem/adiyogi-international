@@ -767,6 +767,7 @@ function ProductsView() {
       preview: URL.createObjectURL(file),
     }))
     setImages((prev) => [...prev, ...newFiles])
+    setShowImageEditor(true)
     e.target.value = ''
   }
 
@@ -802,12 +803,6 @@ function ProductsView() {
       const img = existingImages[index]
       if (img?.fileId) setRemovedFileIds((prev) => [...prev, img.fileId])
       setExistingImages((prev) => prev.filter((_, i) => i !== index))
-    }
-  }
-
-  const handleOpenEditor = () => {
-    if (existingImages.length > 0 || images.length > 0) {
-      setShowImageEditor(true)
     }
   }
 
@@ -1187,72 +1182,123 @@ function ProductsView() {
                 />
               </div>
 
-              {/* Product Images with Editor */}
+              {/* Product Images */}
               <div className="sm:col-span-2">
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Product Images</Label>
-                  <button
-                    type="button"
-                    onClick={handleOpenEditor}
-                    disabled={existingImages.length === 0 && images.length === 0}
-                    className="text-xs px-3 py-1.5 text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Edit Images
-                  </button>
+                <Label>Product Images <span className="text-gray-400 font-normal text-xs">(max 5)</span></Label>
+
+                {/* Thumbnail row */}
+                <div className="flex flex-wrap gap-3 mt-2 items-end">
+                  {/* Existing CDN thumbnails */}
+                  {existingImages.map((img, i) => (
+                    <div
+                      key={`existing-${i}`}
+                      className="relative group w-20 h-20 rounded-xl overflow-hidden border-2 border-navy-100 shadow-sm bg-gray-50 cursor-pointer"
+                      onClick={() => setShowImageEditor(true)}
+                    >
+                      <img src={img.url} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleImageRemove(i, 'existing') }}
+                          className="w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow"
+                          title="Remove"
+                        >
+                          <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setShowImageEditor(true) }}
+                          className="w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow"
+                          title="Edit / Crop"
+                        >
+                          <PencilIcon className="w-3.5 h-3.5 text-navy-700" />
+                        </button>
+                      </div>
+                      <span className="absolute bottom-1 left-1 bg-navy-700/70 text-white text-[9px] font-bold px-1 rounded leading-tight pointer-events-none">
+                        {i + 1}
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* New file thumbnails */}
+                  {images.map((img, i) => (
+                    <div
+                      key={`new-${i}`}
+                      className="relative group w-20 h-20 rounded-xl overflow-hidden border-2 border-champagne-400 shadow-sm bg-gray-50 cursor-pointer"
+                      onClick={() => setShowImageEditor(true)}
+                    >
+                      <img src={img.preview} alt={`New ${i + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleImageRemove(i, 'new') }}
+                          className="w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow"
+                          title="Remove"
+                        >
+                          <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setShowImageEditor(true) }}
+                          className="w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow"
+                          title="Edit / Crop"
+                        >
+                          <PencilIcon className="w-3.5 h-3.5 text-navy-700" />
+                        </button>
+                      </div>
+                      <span className="absolute bottom-1 left-1 bg-champagne-500/80 text-white text-[9px] font-bold px-1 rounded leading-tight pointer-events-none">
+                        NEW
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Add image button */}
+                  {existingImages.length + images.length < 5 && (
+                    <label className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-navy-400 hover:bg-navy-50 transition-colors bg-white group">
+                      <svg className="w-6 h-6 text-gray-400 group-hover:text-navy-500 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="text-[10px] text-gray-400 group-hover:text-navy-500 font-medium">Add</span>
+                      <input
+                        id="image-input"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleImageChange}
+                      />
+                    </label>
+                  )}
                 </div>
-                <input
-                  id="image-input"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageChange}
-                  className="block w-full text-xs sm:text-sm text-gray-500 file:mr-3 file:py-2 file:px-3 sm:file:px-4 file:rounded-xl file:border-0 file:bg-navy-50 file:text-navy-700 file:font-semibold hover:file:bg-navy-100 file:text-xs sm:file:text-sm"
-                />
-                <p className="text-xs text-gray-400 mt-1">Max 10MB each. Click &quot;Edit Images&quot; to crop/rotate.</p>
+                <p className="text-xs text-gray-400 mt-2">Max 10MB each. Click any image to crop or rotate.</p>
 
-                {(existingImages.length > 0 || images.length > 0) && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {existingImages.map((img, i) => (
-                      <div
-                        key={`existing-${i}`}
-                        className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-navy-100 shadow-sm"
-                      >
-                        <img src={img.url} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
-                        <div className="absolute bottom-0 left-0 right-0 bg-navy-800/70 text-white text-[9px] font-bold text-center py-0.5">
-                          {i + 1}
-                        </div>
-                      </div>
-                    ))}
-                    {images.map((img, i) => (
-                      <div
-                        key={`new-${i}`}
-                        className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-champagne-300 shadow-sm"
-                      >
-                        <img src={img.preview} alt={`New ${i + 1}`} className="w-full h-full object-cover" />
-                        <div className="absolute bottom-0 left-0 right-0 bg-champagne-500 text-white text-[9px] font-bold text-center py-0.5">
-                          NEW
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
+                {/* Image Editor Modal */}
                 {showImageEditor && (
-                  <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-8">
-                      <div className="p-4 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
-                        <h2 className="font-display font-bold text-lg text-navy-800">
-                          Image Editor
-                        </h2>
+                  <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-3 sm:p-4">
+                    <div
+                      className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden"
+                      style={{ height: 'min(90vh, 640px)' }}
+                    >
+                      {/* Modal header */}
+                      <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 flex-shrink-0">
+                        <h2 className="font-display font-bold text-base text-navy-800">Add Item Image</h2>
                         <button
                           type="button"
                           onClick={() => setShowImageEditor(false)}
-                          className="text-gray-400 hover:text-gray-600 text-xl p-1"
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                         >
-                          ✕
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
                         </button>
                       </div>
-                      <div className="p-4">
+
+                      {/* Modal body — ImageEditor fills remaining height */}
+                      <div className="flex-1 min-h-0">
                         <ImageEditor
                           images={existingImages.map((img) => ({ url: img.url, fileId: img.fileId }))}
                           newImages={images}
