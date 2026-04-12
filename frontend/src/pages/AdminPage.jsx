@@ -2364,6 +2364,7 @@ const FField = ({ label, value, onChange, type = 'text', placeholder, full, erro
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onWheel={(e) => type === 'number' && e.target.blur()}
       className={`input ${error ? 'border-red-400' : ''}`}
       placeholder={placeholder}
     />
