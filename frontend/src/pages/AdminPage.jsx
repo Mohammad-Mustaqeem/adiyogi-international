@@ -496,6 +496,7 @@ function UnitEditModal({ baseUnit, secondaryUnit, conversionRate, onChange, onCl
                     max="9999"
                     value={custom}
                     onChange={(e) => setCustom(e.target.value)}
+                    onWheel={(e) => e.target.blur()}
                     placeholder="e.g. 50"
                     className="input flex-1 text-center font-bold text-navy-700 py-2"
                     autoFocus
@@ -677,9 +678,33 @@ function ProductsView() {
   const [collections, setCollections] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [images, setImages] = useState([])
-  const [existingImages, setExistingImages] = useState([]) // [{url, fileId}] from CDN
-  const [removedFileIds, setRemovedFileIds] = useState([]) // fileIds queued for deletion
+  // Unified ordered image list: { type: 'existing'|'new', url, fileId?, file?, preview? }
+  // This single array drives both the thumbnail strip and submit order
+  const [imageList, setImageList] = useState([])
+  const [dragIdx, setDragIdx] = useState(null)
+
+  // Keep legacy existingImages/images/removedFileIds in sync for ImageEditor compatibility
+  const existingImages = imageList.filter((x) => x.type === 'existing')
+  const images         = imageList.filter((x) => x.type === 'new')
+
+  const setExistingImages = (updater) => {
+    setImageList((prev) => {
+      const existing = typeof updater === 'function'
+        ? updater(prev.filter((x) => x.type === 'existing'))
+        : updater
+      const newImgs = prev.filter((x) => x.type === 'new')
+      return [...existing, ...newImgs]
+    })
+  }
+  const setImages = (updater) => {
+    setImageList((prev) => {
+      const existingImgs = prev.filter((x) => x.type === 'existing')
+      const newImgs = typeof updater === 'function'
+        ? updater(prev.filter((x) => x.type === 'new'))
+        : updater
+      return [...existingImgs, ...newImgs]
+    })
+  }
   const [loading, setLoading] = useState(false)
   const [showUnitModal, setShowUnitModal] = useState(false)
   const [showCreateColl, setShowCreateColl] = useState(false)
@@ -692,7 +717,7 @@ function ProductsView() {
     hsnCode: '',
     salesPrice: '',
     purchasePrice: '',
-    stock: '',
+    standardPacking: '',
     baseUnit: 'PAC',
     secondaryUnit: 'NOS',
     unitConversionRate: 10,
@@ -711,10 +736,11 @@ function ProductsView() {
     fetchData()
   }, [])
 
+  const [removedFileIds, setRemovedFileIds] = useState([])
+
   const resetForm = () => {
     setForm(EMPTY_FORM)
-    setImages([])
-    setExistingImages([])
+    setImageList([])
     setRemovedFileIds([])
     setEditing(null)
     setErrors({})
@@ -724,10 +750,11 @@ function ProductsView() {
     const files = Array.from(e.target.files)
     if (files.length === 0) return
     const newFiles = files.map((file) => ({
+      type: 'new',
       file,
       preview: URL.createObjectURL(file),
     }))
-    setImages((prev) => [...prev, ...newFiles])
+    setImageList((prev) => [...prev, ...newFiles])
     setShowImageEditor(true)
     e.target.value = ''
   }
@@ -735,37 +762,73 @@ function ProductsView() {
   const handleImageEditorApply = (croppedBlob, index, type) => {
     const croppedFile = new File([croppedBlob], 'cropped.jpg', { type: 'image/jpeg' })
     if (type === 'new') {
-      const newImages = [...images]
-      newImages[index] = { file: croppedFile, preview: URL.createObjectURL(croppedBlob) }
-      setImages(newImages)
+      // Find the nth 'new' item in imageList and replace it
+      setImageList((prev) => {
+        let newCount = -1
+        return prev.map((item) => {
+          if (item.type !== 'new') return item
+          newCount++
+          if (newCount === index) {
+            return { ...item, file: croppedFile, preview: URL.createObjectURL(croppedBlob) }
+          }
+          return item
+        })
+      })
     } else {
-      const url = existingImages[index].url
-      const fileId = existingImages[index].fileId
-      setExistingImages((prev) => {
-        const updated = [...prev]
-        updated[index] = { ...updated[index], _pendingCrop: true }
+      // Replace existing image: queue fileId for deletion, swap in cropped new file
+      setImageList((prev) => {
+        let exCount = -1
+        const updated = []
+        for (const item of prev) {
+          if (item.type !== 'existing') { updated.push(item); continue }
+          exCount++
+          if (exCount === index) {
+            if (item.fileId) setRemovedFileIds((r) => [...r, item.fileId])
+            updated.push({ type: 'new', file: croppedFile, preview: URL.createObjectURL(croppedBlob) })
+          } else {
+            updated.push(item)
+          }
+        }
         return updated
       })
-      setImages((prev) => {
-        const newFiles = [...prev, { file: croppedFile, preview: url }]
-        return newFiles
-      })
-      if (fileId) setRemovedFileIds((prev) => [...prev, fileId])
     }
     setShowImageEditor(false)
   }
 
   const handleImageRemove = (index, type) => {
-    if (type === 'new') {
-      const removed = images[index]
-      if (removed?.preview) URL.revokeObjectURL(removed.preview)
-      setImages((prev) => prev.filter((_, i) => i !== index))
-    } else {
-      const img = existingImages[index]
-      if (img?.fileId) setRemovedFileIds((prev) => [...prev, img.fileId])
-      setExistingImages((prev) => prev.filter((_, i) => i !== index))
-    }
+    setImageList((prev) => {
+      let count = -1
+      return prev.filter((item) => {
+        if (item.type !== type) return true
+        count++
+        if (count === index) {
+          if (type === 'new' && item.preview) URL.revokeObjectURL(item.preview)
+          if (type === 'existing' && item.fileId) setRemovedFileIds((r) => [...r, item.fileId])
+          return false
+        }
+        return true
+      })
+    })
   }
+
+  // Drag-to-reorder handlers
+  const handleDragStart = (e, idx) => {
+    setDragIdx(idx)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  const handleDragOver = (e, idx) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (dragIdx === null || dragIdx === idx) return
+    setImageList((prev) => {
+      const next = [...prev]
+      const [moved] = next.splice(dragIdx, 1)
+      next.splice(idx, 0, moved)
+      setDragIdx(idx)
+      return next
+    })
+  }
+  const handleDragEnd = () => setDragIdx(null)
 
   const openEdit = (p) => {
     setEditing(p._id)
@@ -775,7 +838,7 @@ function ProductsView() {
       hsnCode: p.hsnCode || '',
       salesPrice: p.salesPrice,
       purchasePrice: p.purchasePrice || '',
-      stock: p.stock,
+      standardPacking: p.standardPacking || '',
       baseUnit: p.baseUnit || 'PAC',
       secondaryUnit: p.secondaryUnit || 'NOS',
       unitConversionRate: p.unitConversionRate || 10,
@@ -784,11 +847,9 @@ function ProductsView() {
       place: p.place || '',
       description: p.description || '',
     })
-    // Build existingImages from parallel arrays; fall back gracefully if fileIds are missing
-    const urls = p.images ?? []
+    const urls    = p.images       ?? []
     const fileIds = p.imageFileIds ?? []
-    setExistingImages(urls.map((url, i) => ({ url, fileId: fileIds[i] ?? null })))
-    setImages([])
+    setImageList(urls.map((url, i) => ({ type: 'existing', url, fileId: fileIds[i] ?? null })))
     setRemovedFileIds([])
     setShowForm(true)
   }
@@ -810,18 +871,26 @@ function ProductsView() {
     setLoading(true)
     try {
       const fd = new FormData()
-      // Append all scalar fields
       Object.entries(form).forEach(([k, v]) => {
-        if (k === 'collections') return // handled separately
+        if (k === 'collections') return
         fd.append(k, v)
       })
-      // Send collections as JSON string
       fd.append('collections', JSON.stringify(form.collections))
-      // Tell the backend which existing CDN images to delete
-      if (editing && removedFileIds.length) {
-        fd.append('removeImageIds', JSON.stringify(removedFileIds))
+
+      if (editing) {
+        // Send ordered list of kept existing URLs so backend can preserve order
+        const keptUrls = imageList
+          .filter((x) => x.type === 'existing')
+          .map((x) => x.url)
+        fd.append('keptImageUrls', JSON.stringify(keptUrls))
+        if (removedFileIds.length) {
+          fd.append('removeImageIds', JSON.stringify(removedFileIds))
+        }
       }
-      images.forEach((img) => fd.append('images', img.file))
+
+      // Append new files in their current order
+      imageList.filter((x) => x.type === 'new').forEach((img) => fd.append('images', img.file))
+
       if (editing) await api.put(`/products/${editing}`, fd)
       else await api.post('/products', fd)
       toast.success(`Product ${editing ? 'updated' : 'created'}!`)
@@ -835,12 +904,26 @@ function ProductsView() {
     }
   }
 
+
   const handleDelete = async (id) => {
     if (!confirm('Remove this product?')) return
     await api.delete(`/products/${id}`)
     toast.success('Product removed')
     fetchData()
   }
+
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const filteredProducts = products.filter((p) => {
+    const q = searchQuery.toLowerCase()
+    if (!q) return true
+    return (
+      p.name?.toLowerCase().includes(q) ||
+      p.itemCode?.toLowerCase().includes(q) ||
+      p.hsnCode?.toLowerCase().includes(q) ||
+      p.place?.toLowerCase().includes(q)
+    )
+  })
 
   return (
     <div>
@@ -870,19 +953,33 @@ function ProductsView() {
         />
       )}
 
-      <div className="flex justify-between items-center mb-5 sm:mb-8 gap-3">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 sm:mb-8 gap-3">
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy-800">
           Products
         </h1>
-        <button
-          onClick={() => {
-            resetForm()
-            setShowForm(true)
-          }}
-          className="btn-primary whitespace-nowrap"
-        >
-          + Add Product
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none sm:w-64">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="input pl-9 py-2 text-sm w-full"
+            />
+          </div>
+          <button
+            onClick={() => {
+              resetForm()
+              setShowForm(true)
+            }}
+            className="btn-primary whitespace-nowrap"
+          >
+            + Add Product
+          </button>
+        </div>
       </div>
 
       {/* Product Form Modal */}
@@ -974,17 +1071,16 @@ function ProductsView() {
                 error={errors.purchasePrice}
               />
 
-              {/* Stock */}
+              {/* Standard Packing */}
               <FField
-                label="Stock Quantity"
-                type="number"
-                value={form.stock}
+                label="Standard Packing"
+                value={form.standardPacking}
                 onChange={(v) => {
-                  setForm((p) => ({ ...p, stock: v }))
-                  if (errors.stock) setErrors((p) => ({ ...p, stock: undefined }))
+                  setForm((p) => ({ ...p, standardPacking: v }))
+                  if (errors.standardPacking) setErrors((p) => ({ ...p, standardPacking: undefined }))
                 }}
-                placeholder="100"
-                error={errors.stock}
+                placeholder="e.g. 10 NOS per PAC"
+                error={errors.standardPacking}
               />
 
               {/* GST Rate */}
@@ -995,6 +1091,7 @@ function ProductsView() {
                   onChange={(e) =>
                     setForm((p) => ({ ...p, gstRate: Number(e.target.value) }))
                   }
+                  onWheel={(e) => e.target.blur()}
                   className="input"
                 >
                   <option value={0}>0%</option>
@@ -1145,80 +1242,62 @@ function ProductsView() {
 
               {/* Product Images */}
               <div className="sm:col-span-2">
-                <Label>Product Images <span className="text-gray-400 font-normal text-xs">(max 5)</span></Label>
+                <Label>Product Images <span className="text-gray-400 font-normal text-xs">(max 5 · drag to reorder)</span></Label>
 
-                {/* Thumbnail row */}
+                {/* Unified thumbnail row with drag-to-reorder */}
                 <div className="flex flex-wrap gap-3 mt-2 items-end">
-                  {/* Existing CDN thumbnails */}
-                  {existingImages.map((img, i) => (
-                    <div
-                      key={`existing-${i}`}
-                      className="relative group w-20 h-20 rounded-xl overflow-hidden border-2 border-navy-100 shadow-sm bg-gray-50 cursor-pointer"
-                      onClick={() => setShowImageEditor(true)}
-                    >
-                      <img src={img.url} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleImageRemove(i, 'existing') }}
-                          className="w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow"
-                          title="Remove"
-                        >
-                          <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  {imageList.map((img, i) => {
+                    const src = img.type === 'existing' ? img.url : img.preview
+                    const isExisting = img.type === 'existing'
+                    // index within its own type group (for ImageEditor callbacks)
+                    const typeIdx = imageList.slice(0, i).filter((x) => x.type === img.type).length
+                    return (
+                      <div
+                        key={`${img.type}-${i}`}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, i)}
+                        onDragOver={(e) => handleDragOver(e, i)}
+                        onDragEnd={handleDragEnd}
+                        className={`relative group w-20 h-20 rounded-xl overflow-hidden border-2 shadow-sm bg-gray-50 cursor-grab active:cursor-grabbing select-none ${
+                          dragIdx === i ? 'opacity-50 scale-95' : ''
+                        } ${isExisting ? 'border-navy-100' : 'border-champagne-400'}`}
+                      >
+                        <img src={src} alt={`Image ${i + 1}`} className="w-full h-full object-cover pointer-events-none" />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleImageRemove(typeIdx, img.type) }}
+                            className="w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow"
+                            title="Remove"
+                          >
+                            <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setShowImageEditor(true) }}
+                            className="w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow"
+                            title="Edit / Crop"
+                          >
+                            <PencilIcon className="w-3.5 h-3.5 text-navy-700" />
+                          </button>
+                        </div>
+                        <span className={`absolute bottom-1 left-1 text-white text-[9px] font-bold px-1 rounded leading-tight pointer-events-none ${isExisting ? 'bg-navy-700/70' : 'bg-champagne-500/80'}`}>
+                          {isExisting ? i + 1 : 'NEW'}
+                        </span>
+                        {/* drag handle hint */}
+                        <span className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                          <svg className="w-3 h-3 text-white drop-shadow" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
                           </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setShowImageEditor(true) }}
-                          className="w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow"
-                          title="Edit / Crop"
-                        >
-                          <PencilIcon className="w-3.5 h-3.5 text-navy-700" />
-                        </button>
+                        </span>
                       </div>
-                      <span className="absolute bottom-1 left-1 bg-navy-700/70 text-white text-[9px] font-bold px-1 rounded leading-tight pointer-events-none">
-                        {i + 1}
-                      </span>
-                    </div>
-                  ))}
-
-                  {/* New file thumbnails */}
-                  {images.map((img, i) => (
-                    <div
-                      key={`new-${i}`}
-                      className="relative group w-20 h-20 rounded-xl overflow-hidden border-2 border-champagne-400 shadow-sm bg-gray-50 cursor-pointer"
-                      onClick={() => setShowImageEditor(true)}
-                    >
-                      <img src={img.preview} alt={`New ${i + 1}`} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleImageRemove(i, 'new') }}
-                          className="w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow"
-                          title="Remove"
-                        >
-                          <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setShowImageEditor(true) }}
-                          className="w-7 h-7 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow"
-                          title="Edit / Crop"
-                        >
-                          <PencilIcon className="w-3.5 h-3.5 text-navy-700" />
-                        </button>
-                      </div>
-                      <span className="absolute bottom-1 left-1 bg-champagne-500/80 text-white text-[9px] font-bold px-1 rounded leading-tight pointer-events-none">
-                        NEW
-                      </span>
-                    </div>
-                  ))}
+                    )
+                  })}
 
                   {/* Add image button */}
-                  {existingImages.length + images.length < 5 && (
+                  {imageList.length < 5 && (
                     <label className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-navy-400 hover:bg-navy-50 transition-colors bg-white group">
                       <svg className="w-6 h-6 text-gray-400 group-hover:text-navy-500 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1235,7 +1314,7 @@ function ProductsView() {
                     </label>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 mt-2">Max 10MB each. Click any image to crop or rotate.</p>
+                <p className="text-xs text-gray-400 mt-2">Max 10MB each. Drag thumbnails to reorder. Hover to edit or remove.</p>
 
                 {/* Image Editor Modal */}
                 {showImageEditor && (
@@ -1244,9 +1323,8 @@ function ProductsView() {
                       className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden"
                       style={{ height: 'min(90vh, 640px)' }}
                     >
-                      {/* Modal header */}
                       <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 flex-shrink-0">
-                        <h2 className="font-display font-bold text-base text-navy-800">Add Item Image</h2>
+                        <h2 className="font-display font-bold text-base text-navy-800">Edit Image</h2>
                         <button
                           type="button"
                           onClick={() => setShowImageEditor(false)}
@@ -1257,8 +1335,6 @@ function ProductsView() {
                           </svg>
                         </button>
                       </div>
-
-                      {/* Modal body — ImageEditor fills remaining height */}
                       <div className="flex-1 min-h-0">
                         <ImageEditor
                           images={existingImages.map((img) => ({ url: img.url, fileId: img.fileId }))}
@@ -1306,7 +1382,7 @@ function ProductsView() {
                   'Code',
                   'Purchase Price',
                   'Sales Price',
-                  'Stock',
+                  'Standard Packing',
                   'Collections',
                   'Place',
                   'Actions',
@@ -1321,7 +1397,7 @@ function ProductsView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {products.map((p) => (
+              {filteredProducts.map((p) => (
                 <tr key={p._id} className="hover:bg-gray-50">
                   <td className="px-3 sm:px-4 py-2.5">
                     <div className="flex items-center gap-2 sm:gap-3">
@@ -1350,7 +1426,7 @@ function ProductsView() {
                     {p.purchasePrice ? `₹${p.purchasePrice}` : '—'}
                   </td>
                   <td className="px-3 sm:px-4 py-2.5  text-navy-700">₹{p.salesPrice}</td>
-                  <td className="px-3 sm:px-4 py-2.5 text-gray-600">{p.stock}</td>
+                  <td className="px-3 sm:px-4 py-2.5 text-gray-600">{p.standardPacking || '—'}</td>
                   <td className="px-3 sm:px-4 py-2.5 text-gray-500 text-xs">
                     {p.collections?.length
                       ? p.collections.map((c) => c.name).join(', ')
@@ -1379,8 +1455,11 @@ function ProductsView() {
               ))}
             </tbody>
           </table>
-          {products.length === 0 && (
-            <EmptyState icon="📦" msg="No products yet. Add your first product!" />
+          {filteredProducts.length === 0 && (
+            <EmptyState
+              icon="📦"
+              msg={searchQuery ? `No products match "${searchQuery}"` : 'No products yet. Add your first product!'}
+            />
           )}
         </div>
       </div>
@@ -2364,7 +2443,7 @@ const FField = ({ label, value, onChange, type = 'text', placeholder, full, erro
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      onWheel={(e) => type === 'number' && e.target.blur()}
+      onWheel={type === 'number' ? (e) => e.target.blur() : undefined}
       className={`input ${error ? 'border-red-400' : ''}`}
       placeholder={placeholder}
     />

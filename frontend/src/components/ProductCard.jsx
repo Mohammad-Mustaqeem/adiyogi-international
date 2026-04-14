@@ -16,15 +16,6 @@ export default function ProductCard({ product }) {
 
   return (
     <div className="card group relative flex flex-col h-full">
-      {/* Badges */}
-      <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-        {product.stock === 0 && (
-          <span className="badge bg-gray-500 text-white text-[9px] sm:text-[10px]">
-            Out of Stock
-          </span>
-        )}
-      </div>
-
       {/* ── Clickable area: image + name ── */}
       <div
         className="flex flex-col flex-1 cursor-pointer"
@@ -57,12 +48,17 @@ export default function ProductCard({ product }) {
 
         {/* Name + code */}
         <div className="px-3 sm:px-4 pt-3">
-          <p className="text-lg sm:text-base font-mono font-bold text-gray-900 mb-1">
+          <p className="text-[9px] sm:text-[14px] font-mono font-black text-black-700 mb-1">
             ITEM CODE : {product.itemCode}
           </p>
-          <h3 className="font-display font-bold font-mono text-gray-800 text-xs sm:text-sm leading-snug line-clamp-2">
+          {product.standardPacking && (
+            <p className="text-[9px] sm:text-[12px] font-semibold mb-1" style={{ color: '#a8872f' }}>
+              {product.standardPacking}
+            </p>
+          )}
+          <h6 className="font-display font-bold font-mono text-black-100 text-xs sm:text-sm leading-snug line-clamp-2">
             {product.name}
-          </h3>
+          </h6>
         </div>
       </div>
 
@@ -77,9 +73,7 @@ export default function ProductCard({ product }) {
         </div>
 
         {/* Add / Stepper */}
-        {product.stock === 0 ? (
-          <span className="text-[10px] text-gray-400 font-semibold">Out of Stock</span>
-        ) : inCart ? (
+        {inCart ? (
           <div className="flex items-center border border-blue-500 rounded-full overflow-hidden">
             <button
               className="w-8 h-8 flex items-center justify-center text-blue-600 hover:bg-blue-50 font-bold text-base transition-colors"

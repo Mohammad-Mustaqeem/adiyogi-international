@@ -6,7 +6,8 @@ export const createProductSchema = z.object({
   salesPrice: z.coerce.number().positive('Sales price must be positive'),
   description: z.string().optional(),
   hsnCode: z.string().optional(),
-  purchasePrice: z.coerce.number().optional(),
+  purchasePrice: z.union([z.literal(''), z.coerce.number()]).optional(),
+  standardPacking: z.string().optional(),
   baseUnit: z.enum(['PAC', 'NOS']).optional(),
   secondaryUnit: z.enum(['NOS', 'None']).optional(),
   unitConversionRate: z.coerce.number().optional(),
@@ -15,6 +16,8 @@ export const createProductSchema = z.object({
   gstRate: z.coerce.number().optional(),
   collections: z.any().optional(),
   collection: z.any().optional(),
-});
+  keptImageUrls: z.string().optional(),
+  removeImageIds: z.string().optional(),
+}).passthrough();
 
 export const updateProductSchema = createProductSchema.partial();

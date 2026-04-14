@@ -48,18 +48,68 @@ export async function updateProduct(id, body, files) {
   data.collections = parseCollections(body);
   delete data.collection;
 
-  if (files?.length) {
-    // Upload new images first
-    const uploaded    = await imagekitService.uploadProductImages(files);
-    data.images       = uploaded.map((u) => u.url);
-    data.imageFileIds = uploaded.map((u) => u.fileId);
-
-    // Delete old images from ImageKit (fire-and-forget)
-    const existing = await productRepo.findById(id);
-    if (existing?.imageFileIds?.length) {
-      imagekitService.deleteFiles(existing.imageFileIds).catch(() => {});
-    }
+  // Parse which existing CDN fileIds should be removed
+  let removeFileIds = [];
+  if (body.removeImageIds) {
+    try {
+      removeFileIds = JSON.parse(body.removeImageIds);
+    } catch { removeFileIds = []; }
   }
+
+  // Parse the ordered list of kept existing image URLs sent from the frontend
+  let keptImageUrls = [];
+  if (body.keptImageUrls) {
+    try {
+      keptImageUrls = JSON.parse(body.keptImageUrls);
+    } catch { keptImageUrls = []; }
+  }
+
+  // Fetch current product to get existing image arrays
+  const existing = await productRepo.findById(id);
+  if (!existing) throw new ApiError(404, 'Product not found');
+
+  const existingUrls    = existing.images       ?? [];
+  const existingFileIds = existing.imageFileIds  ?? [];
+
+  // Build a url→fileId map for lookup
+  const urlToFileId = {};
+  existingUrls.forEach((url, i) => { urlToFileId[url] = existingFileIds[i] ?? null; });
+
+  // Determine kept existing images in the order specified by frontend
+  // If frontend sent keptImageUrls, use that order; otherwise keep all non-removed ones
+  let keptUrls, keptFileIds;
+  if (keptImageUrls.length > 0) {
+    keptUrls    = keptImageUrls;
+    keptFileIds = keptImageUrls.map((url) => urlToFileId[url] ?? null);
+  } else {
+    // Fall back: keep everything not in removeFileIds
+    const removedSet = new Set(removeFileIds);
+    keptUrls    = [];
+    keptFileIds = [];
+    existingUrls.forEach((url, i) => {
+      const fid = existingFileIds[i] ?? null;
+      if (!removedSet.has(fid)) {
+        keptUrls.push(url);
+        keptFileIds.push(fid);
+      }
+    });
+  }
+
+  // Upload new images and append after the kept ones
+  let newUrls = [], newFileIds = [];
+  if (files?.length) {
+    const uploaded = await imagekitService.uploadProductImages(files);
+    newUrls    = uploaded.map((u) => u.url);
+    newFileIds = uploaded.map((u) => u.fileId);
+  }
+
+  // Delete only the explicitly removed files from ImageKit (fire-and-forget)
+  if (removeFileIds.length) {
+    imagekitService.deleteFiles(removeFileIds.filter(Boolean)).catch(() => {});
+  }
+
+  data.images       = [...keptUrls,    ...newUrls];
+  data.imageFileIds = [...keptFileIds, ...newFileIds];
 
   return productRepo.update(id, data);
 }

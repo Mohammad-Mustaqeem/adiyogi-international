@@ -26,10 +26,17 @@ const errorHandler = (err, _req, res, _next) => {
     return res.status(400).json({ message: err.message });
   }
 
-  // ImageKit CDN errors
-  if (err.message && (err.message.toLowerCase().includes('imagekit') || err.message.includes('ik.imagekit'))) {
+  // ImageKit CDN errors — catch auth failures and generic CDN errors
+  if (err.message && (
+    err.message.toLowerCase().includes('imagekit') ||
+    err.message.includes('ik.imagekit') ||
+    err.message.toLowerCase().includes('cannot be authenticated') ||
+    err.message.toLowerCase().includes('unauthorized') ||
+    err.message.toLowerCase().includes('invalid api key') ||
+    (err.response && err.response.status === 401)
+  )) {
     return res.status(502).json({
-      message: 'CDN service error. Please try again.',
+      message: 'Image upload failed: CDN credentials are not configured correctly. Please check your IMAGEKIT environment variables.',
       ...(process.env.NODE_ENV === 'development' && { detail: err.message }),
     });
   }

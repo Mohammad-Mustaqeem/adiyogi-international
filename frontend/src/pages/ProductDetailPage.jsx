@@ -175,11 +175,6 @@ export default function ProductDetailPage() {
               )}
 
               <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-                {product.stock === 0 && (
-                  <span className="bg-gray-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
-                    Out of Stock
-                  </span>
-                )}
               </div>
             </div>
 
@@ -221,10 +216,6 @@ export default function ProductDetailPage() {
               </div>
             )}
 
-            <h1 className="font-display font-bold text-2xl sm:text-3xl lg:text-4xl text-navy-800 leading-tight">
-              {product.name}
-            </h1>
-
             <div className="flex flex-wrap gap-3">
               <div className="bg-gray-100 rounded-xl px-3 py-2">
                 <p className="text-xs text-gray-400 font-medium">Item Code</p>
@@ -240,7 +231,19 @@ export default function ProductDetailPage() {
                   </p>
                 </div>
               )}
+              {product.standardPacking && (
+                <div className="bg-champagne-50 border border-champagne-200 rounded-xl px-3 py-2">
+                  <p className="text-xs text-champagne-500 font-medium">Standard Packing</p>
+                  <p className="font-bold text-champagne-700 text-sm">
+                    {product.standardPacking}
+                  </p>
+                </div>
+              )}
             </div>
+
+            <h1 className="font-display font-bold text-2xl sm:text-3xl lg:text-4xl text-navy-800 leading-tight">
+              {product.name}
+            </h1>
 
             {/* Price Block */}
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
@@ -284,82 +287,54 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
-            {/* Stock indicator */}
-            <div
-              className={`flex items-center gap-2 text-sm font-semibold ${
-                product.stock > 10
-                  ? "text-green-600"
-                  : product.stock > 0
-                    ? "text-orange-500"
-                    : "text-red-500"
-              }`}
-            >
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${
-                  product.stock > 10
-                    ? "bg-green-500"
-                    : product.stock > 0
-                      ? "bg-orange-400"
-                      : "bg-red-500"
-                }`}
-              ></span>
-              {product.stock > 10
-                ? `In Stock (${product.stock} units)`
-                : product.stock > 0
-                  ? `Only ${product.stock} left!`
-                  : "Out of Stock"}
-            </div>
-
             {/* Add to Cart — Vyapar 2-state */}
-            {product.stock > 0 && (
-              <div className="space-y-3">
-                {inCart ? (
-                  <>
-                    <div className="flex items-center justify-between bg-white border border-blue-500 rounded-2xl px-5 py-3">
-                      <button
-                        onClick={() => updateQuantity(product._id, cartItem.quantity - 1)}
-                        className="w-10 h-10 flex items-center justify-center text-blue-600 hover:bg-blue-50 font-bold text-2xl rounded-full transition-colors"
-                      >
-                        −
-                      </button>
-                      <div className="text-center">
-                        <span className="text-xl font-bold text-blue-700">{cartItem.quantity}</span>
-                        <p className="text-xs text-gray-400">{cartItem.quantity * conversion} NOS</p>
-                      </div>
-                      <button
-                        onClick={() => updateQuantity(product._id, cartItem.quantity + 1)}
-                        className="w-10 h-10 flex items-center justify-center text-blue-600 hover:bg-blue-50 font-bold text-2xl rounded-full transition-colors"
-                      >
-                        +
-                      </button>
+            <div className="space-y-3">
+              {inCart ? (
+                <>
+                  <div className="flex items-center justify-between bg-white border border-blue-500 rounded-2xl px-5 py-3">
+                    <button
+                      onClick={() => updateQuantity(product._id, cartItem.quantity - 1)}
+                      className="w-10 h-10 flex items-center justify-center text-blue-600 hover:bg-blue-50 font-bold text-2xl rounded-full transition-colors"
+                    >
+                      −
+                    </button>
+                    <div className="text-center">
+                      <span className="text-xl font-bold text-blue-700">{cartItem.quantity}</span>
+                      <p className="text-xs text-gray-400">{cartItem.quantity * conversion} NOS</p>
                     </div>
-                    <div className="bg-navy-50 rounded-xl px-4 py-2.5 text-sm">
-                      <span className="text-gray-600">Subtotal: </span>
-                      <span className="font-bold text-navy-700 text-base">
-                        ₹{formatCurrency(salesPrice * cartItem.quantity)}
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => addToCart(product, 1)}
-                    className="w-full py-4 rounded-2xl font-bold text-base border-2 border-blue-500 text-blue-600 hover:bg-blue-50 transition-all duration-200 flex items-center justify-center gap-3"
-                  >
-                    <CartIcon className="w-5 h-5" /> + Add to Cart
-                  </button>
-                )}
-
+                    <button
+                      onClick={() => updateQuantity(product._id, cartItem.quantity + 1)}
+                      className="w-10 h-10 flex items-center justify-center text-blue-600 hover:bg-blue-50 font-bold text-2xl rounded-full transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="bg-navy-50 rounded-xl px-4 py-2.5 text-sm">
+                    <span className="text-gray-600">Subtotal: </span>
+                    <span className="font-bold text-navy-700 text-base">
+                      ₹{formatCurrency(salesPrice * cartItem.quantity)}
+                    </span>
+                  </div>
+                </>
+              ) : (
                 <button
-                  onClick={() => {
-                    if (!inCart) addToCart(product, 1);
-                    navigate("/checkout");
-                  }}
-                  className="w-full py-4 rounded-2xl font-bold text-base border-2 border-champagne-500 text-champagne-600 hover:bg-champagne-500 hover:text-white transition-all duration-300 flex items-center justify-center gap-3"
+                  onClick={() => addToCart(product, 1)}
+                  className="w-full py-4 rounded-2xl font-bold text-base border-2 border-blue-500 text-blue-600 hover:bg-blue-50 transition-all duration-200 flex items-center justify-center gap-3"
                 >
-                  <BoltIcon className="w-5 h-5" /> Buy Now
+                  <CartIcon className="w-5 h-5" /> + Add to Cart
                 </button>
-              </div>
-            )}
+              )}
+
+              <button
+                onClick={() => {
+                  if (!inCart) addToCart(product, 1);
+                  navigate("/checkout");
+                }}
+                className="w-full py-4 rounded-2xl font-bold text-base border-2 border-champagne-500 text-champagne-600 hover:bg-champagne-500 hover:text-white transition-all duration-300 flex items-center justify-center gap-3"
+              >
+                <BoltIcon className="w-5 h-5" /> Buy Now
+              </button>
+            </div>
 
             {/* Description */}
             {product.description && (
