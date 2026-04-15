@@ -42,25 +42,26 @@ export default function ProductCard({ product }) {
 
           {/* Logo — top-left corner */}
           <div className="absolute top-1 left-1 pointer-events-none select-none">
-            <img src="/logo.png" alt="" style={{ height: '100px', width: '100px', objectFit: 'contain', objectPosition: 'left center' }} />
+            <img src="/logo.png" alt="" style={{
+              height: 'clamp(50px, 13vw, 100px)',
+              width:  'clamp(50px, 13vw, 100px)',
+              objectFit: 'contain',
+              objectPosition: 'left center',
+            }} />
           </div>
 
           {/* Diagonal phone watermark */}
-          <div
-            className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden"
-          >
-            <span
-              style={{
-                transform: 'rotate(-35deg)',
-                fontSize: '42px',
-                fontWeight: '700',
-                fontFamily: 'monospace',
-                color: 'rgba(15, 32, 64, 0.18)',
-                letterSpacing: '0.08em',
-                whiteSpace: 'nowrap',
-                userSelect: 'none',
-              }}
-            >
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
+            <span style={{
+              transform: 'rotate(-35deg)',
+              fontSize: 'clamp(18px, 5vw, 42px)',
+              fontWeight: '700',
+              fontFamily: 'monospace',
+              color: 'rgba(15, 32, 64, 0.18)',
+              letterSpacing: '0.08em',
+              whiteSpace: 'nowrap',
+              userSelect: 'none',
+            }}>
               7975198804
             </span>
           </div>
@@ -74,13 +75,12 @@ export default function ProductCard({ product }) {
 
         {/* Name + code */}
         <div className="px-3 sm:px-4 pt-3">
-          
-          <p className="text-[9px] sm:text-[14px] font-mono font-black text-black-700 mb-1">
+           <p className="text-[9px] sm:text-[12px] font-mono font-black text-black-700 mb-1">
             ITEM CODE : {product.itemCode}
           </p>
           {product.standardPacking && (
             <p className="text-[9px] sm:text-[12px] font-semibold mb-1" style={{ color: '#a8872f' }}>
-              {product.standardPacking}
+              Standard Packing: {product.standardPacking}
             </p>
           )}
           <h6 className="font-display font-bold font-mono text-black-100 text-xs sm:text-sm leading-snug line-clamp-2">
