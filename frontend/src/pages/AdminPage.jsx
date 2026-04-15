@@ -1431,7 +1431,9 @@ function ProductsView() {
                     {p.purchasePrice ? `₹${p.purchasePrice}` : '—'}
                   </td>
                   <td className="px-3 sm:px-4 py-2.5  text-navy-700">₹{p.salesPrice}</td>
-                  <td className="px-3 sm:px-4 py-2.5 text-gray-600">{p.standardPacking || '—'}</td>
+                  <td className="px-3 sm:px-4 py-2.5 text-gray-600">
+                    {p.standardPacking ? `Standard Packing: ${p.standardPacking}` : '—'}
+                  </td>
                   <td className="px-3 sm:px-4 py-2.5 text-gray-500 text-xs">
                     {p.collections?.length
                       ? p.collections.map((c) => c.name).join(', ')
