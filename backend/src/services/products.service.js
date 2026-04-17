@@ -2,6 +2,7 @@ import { ApiError } from '../utils/api-error.js';
 import { parseCollections } from '../utils/helpers.js';
 import * as productRepo from '../repositories/product.repository.js';
 import * as imagekitService from './imagekit.service.js';
+import Collection from '../models/collection.model.js';
 
 export async function getProducts({ page = 1, limit = 12, search, collection } = {}) {
   const filter = { isActive: true };
@@ -12,14 +13,31 @@ export async function getProducts({ page = 1, limit = 12, search, collection } =
 
   if (search) {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Search: itemCode (prefix), name (contains), description (contains)
-    // Case-insensitive partial matching
-    filter.$or = [
-      { itemCode: { $regex: `^${escaped}`, $options: 'i' } },
+
+    // Item code: exact full match — supports special chars like KBS-100/A, KBS.100, KBS#100
+    const itemCodeExact  = { $regex: `^${escaped}$`, $options: 'i' };
+    // Item code prefix: query followed by a non-alphanumeric char or end of string
+    // KBS-100 matches KBS-100 and KBS-100/A but NOT KBS-1001
+    const itemCodePrefix = { $regex: `^${escaped}([^A-Za-z0-9]|$)`, $options: 'i' };
+    // Name: contains the search string anywhere, special chars matched literally
+    const nameRegex      = { $regex: escaped, $options: 'i' };
+
+    // Collection name: find matching collection IDs first, then filter products by those IDs
+    const matchingCollections = await Collection.find(
       { name: { $regex: escaped, $options: 'i' } },
-      { description: { $regex: escaped, $options: 'i' } },
+      '_id'
+    ).lean();
+    const collectionIds = matchingCollections.map((c) => c._id);
+
+    filter.$or = [
+      { itemCode: itemCodeExact },
+      { itemCode: itemCodePrefix },
+      { name: nameRegex },
     ];
-    console.log(`[Product Search] query: "${search}", filter:`, JSON.stringify(filter));
+
+    if (collectionIds.length > 0) {
+      filter.$or.push({ collections: { $in: collectionIds } });
+    }
   }
 
   const [products, total] = await Promise.all([
