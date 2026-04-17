@@ -1,4 +1,4 @@
-import { NAV_LINKS } from "@/constants";
+import { NAV_LINKS } from '@/constants'
 
 export default function Footer() {
   return (
@@ -49,35 +49,54 @@ export default function Footer() {
               </p>
               <div className="space-y-1 mt-2">
                 <p className="flex items-center gap-2">
-                  <span>📞</span> <a href="tel:7975198804" className="hover:text-champagne-400 transition-colors">7975198804</a>
+                  <span>📞</span>{' '}
+                  <a
+                    href="tel:7975198804"
+                    className="hover:text-champagne-400 transition-colors"
+                  >
+                    7975198804
+                  </a>
                 </p>
                 <p className="flex items-center gap-2">
-                  <span>📞</span> <a href="tel:8123458984" className="hover:text-champagne-400 transition-colors">8123458984</a>
+                  <span>📞</span>{' '}
+                  <a
+                    href="tel:8123458984"
+                    className="hover:text-champagne-400 transition-colors"
+                  >
+                    8123458984
+                  </a>
                 </p>
                 <p className="flex items-center gap-2">
-                  <span>📞</span> <a href="tel:8722812222" className="hover:text-champagne-400 transition-colors">8722812222</a>
+                  <span>📞</span>{' '}
+                  <a
+                    href="tel:8722812222"
+                    className="hover:text-champagne-400 transition-colors"
+                  >
+                    8722812222
+                  </a>
                 </p>
                 <p className="flex items-center gap-2">
-                <span>📦</span> Premium quality industrial products
-              </p>
-              <p className="text-navy-300 text-xs leading-relaxed mt-3">
-                WhatsApp orders processed within 24 hours. We&apos;ll confirm your
-                order shortly after placement.
-              </p>
+                  <span>📦</span> Premium quality industrial products
+                </p>
+                <p className="text-navy-300 text-xs leading-relaxed mt-3">
+                  WhatsApp orders processed within 24 hours. We&apos;ll confirm your order
+                  shortly after placement.
+                </p>
               </div>
             </div>
           </div>
         </div>
-
-        <div className="gold-divider my-8 sm:my-10" />
+        <p className="text-center text-xs sm:text-sm text-navy-400 mb-2">
+          Designed and Developed by Neuronix Technology, Vijayapura.
+        </p>
+        <div className="gold-divider my-2" />
 
         <div className="flex flex-col sm:flex-row justify-between items-center gap-3 text-xs sm:text-sm">
           <p className="text-navy-400">
-            © {new Date().getFullYear()} Adiyogi International. All rights
-            reserved.
+            © {new Date().getFullYear()} Adiyogi International. All rights reserved.
           </p>
         </div>
       </div>
     </footer>
-  );
+  )
 }

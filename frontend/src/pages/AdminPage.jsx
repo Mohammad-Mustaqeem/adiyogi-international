@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import ImageEditor from '@/components/ImageEditor'
+import { useDebounce } from '@/hooks/useDebounce'
 import api from '@/lib/api-client'
 import {
   loginSchema,
@@ -676,6 +677,9 @@ function CreateCollectionModal({ onCreated, onClose }) {
 function ProductsView() {
   const [products, setProducts] = useState([])
   const [collections, setCollections] = useState([])
+  const [total, setTotal] = useState(0)
+  const [pages, setPages] = useState(1)
+  const [currentPage, setCurrentPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   // Unified ordered image list: { type: 'existing'|'new', url, fileId?, file?, preview? }
@@ -728,8 +732,10 @@ function ProductsView() {
   }
   const [form, setForm] = useState(EMPTY_FORM)
 
-  const fetchData = () => {
-    api.get('/products?limit=200').then((r) => setProducts(r.data.products))
+  const fetchData = (page = 1, search = '') => {
+    const params = new URLSearchParams({ page, limit: 20 })
+    if (search) params.append('search', search)
+    api.get(`/products?${params}`).then((r) => { setProducts(r.data.products); setTotal(r.data.total); setPages(r.data.pages); setCurrentPage(r.data.page) })
     api.get('/collections').then((r) => setCollections(r.data))
   }
   useEffect(() => {
@@ -913,22 +919,19 @@ function ProductsView() {
   }
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch] = useDebounce(searchQuery, 400)
 
-  const filteredProducts = products.filter((p) => {
-    const q = searchQuery.trim()
-    if (!q) return true
-    // Escape regex special chars so KBS-100 doesn't treat - as anything special
-    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    // Item code: query must match the FULL code, or be followed by a non-alphanumeric char
-    // e.g. KBS-100 matches KBS-100 and KBS-100/A but NOT KBS-1001 or KBSH-100
-    const codeMatch = new RegExp(`^${escaped}([^A-Za-z0-9]|$)`, 'i')
-    // Name: match at start of any word only
-    const nameMatch = new RegExp(`(^|\\s|-)${escaped}`, 'i')
-    return (
-      codeMatch.test(p.itemCode?.trim()) ||
-      nameMatch.test(p.name)
-    )
-  })
+  useEffect(() => {
+    fetchData(1, debouncedSearch)
+  }, [debouncedSearch])
+
+  const handlePageChange = (newPage) => {
+    fetchData(newPage, debouncedSearch)
+  }
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value)
+  }
 
   return (
     <div>
@@ -961,6 +964,7 @@ function ProductsView() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 sm:mb-8 gap-3">
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy-800">
           Products
+          {total > 0 && <span className="text-base sm:text-lg font-normal text-gray-400 ml-2">({total})</span>}
         </h1>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none sm:w-64">
@@ -971,7 +975,7 @@ function ProductsView() {
               type="text"
               placeholder="Search products..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               className="input pl-9 py-2 text-sm w-full"
             />
           </div>
@@ -1402,7 +1406,7 @@ function ProductsView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredProducts.map((p) => (
+              {products.map((p) => (
                 <tr key={p._id} className="hover:bg-gray-50">
                   <td className="px-3 sm:px-4 py-2.5">
                     <div className="flex items-center gap-2 sm:gap-3">
@@ -1462,11 +1466,46 @@ function ProductsView() {
               ))}
             </tbody>
           </table>
-          {filteredProducts.length === 0 && (
+          {products.length === 0 && (
             <EmptyState
               icon="📦"
-              msg={searchQuery ? `No products match "${searchQuery}"` : 'No products yet. Add your first product!'}
+              msg={debouncedSearch ? `No products match "${debouncedSearch}"` : 'No products yet. Add your first product!'}
             />
+          )}
+          {pages > 1 && (
+            <div className="flex justify-center items-center gap-1.5 sm:gap-2 mt-6 flex-wrap">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="p-2 sm:p-3 rounded-xl border border-gray-200 hover:bg-navy-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              {Array.from({ length: Math.min(pages, 7) }, (_, i) => {
+                let page;
+                if (pages <= 7) page = i + 1;
+                else if (i === 0) page = 1;
+                else if (i === 6) page = pages;
+                else if (currentPage <= 4) page = i + 1;
+                else if (currentPage >= pages - 3) page = pages - 6 + i;
+                else page = currentPage - 3 + i;
+                return (
+                  <button key={page} onClick={() => handlePageChange(page)}
+                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl font-semibold text-xs sm:text-sm transition-all ${
+                      currentPage === page ? "bg-navy-600 text-white shadow-md" : "border border-gray-200 hover:bg-navy-50 text-gray-600"
+                    }`}>
+                    {page}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === pages}
+                className="p-2 sm:p-3 rounded-xl border border-gray-200 hover:bg-navy-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
           )}
         </div>
       </div>
