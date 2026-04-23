@@ -79,7 +79,7 @@ export default function ProductCard({ product }) {
             ITEM CODE : {product.itemCode}
           </p>
           {product.standardPacking && (
-            <p className="text-[9px] sm:text-[13px] font-semibold mb-1" style={{ color: "black" }}>
+            <p className="text-[9px] sm:text-[13px] font-semibold mb-1" style={{ color: "#D4AF37" }}>
               Standard Packing: {product.standardPacking}
             </p>
           )}

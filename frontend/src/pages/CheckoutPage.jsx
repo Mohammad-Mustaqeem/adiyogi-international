@@ -169,7 +169,8 @@ export default function CheckoutPage() {
               </div>
             </FormSection>
 
-            {/* Address */}
+            {/*      
+            
             <FormSection title="Delivery Address" step="2">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="sm:col-span-2">
@@ -225,9 +226,10 @@ export default function CheckoutPage() {
                   <FieldError msg={errors.state} />
                 </div>
               </div>
-            </FormSection>
-
+            </FormSection>  
+            */}                
           </div>
+           
 
           {/* Right: Summary */}
           <div className="lg:col-span-2">
